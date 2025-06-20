@@ -546,8 +546,14 @@
             </div>
 
             <div id="section-account" class="settings-section">
-                <p class="text-center text-lg text-gray-300">Login to keep your scores permanently!</p>
+                <!-- User account information and actions -->
+                <p class="text-center text-lg text-gray-300" id="account-status-message">Login to keep your scores permanently!</p>
+                <div class="modal-item">
+                    <span>Logged In As:</span>
+                    <span id="username-display">Guest (Not Logged In)</span>
+                </div>
                 <button id="login-btn" class="btn">Login / Register</button>
+                <button id="logout-btn" class="btn" style="display: none;">Logout</button>
             </div>
 
             <button id="return-to-main-menu-settings-btn" class="close-btn">Return to Main Menu</button>
@@ -571,7 +577,7 @@
     <script type="module">
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, query, orderBy, limit, getDocs, addDoc, onSnapshot, serverTimestamp, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- START OF REQUIRED CHANGES FOR GITHUB PAGES DEPLOYMENT ---
@@ -580,9 +586,9 @@
         // Get this from your Firebase Console -> Project settings -> Your apps -> Web App -> Config
         const firebaseConfig = {
           // !! IMPORTANT !! REPLACE ALL THE PLACEHOLDER VALUES BELOW WITH YOUR ACTUAL FIREBASE CONFIGURATION
-          apiKey: "AIzaSyAIFsE6cwpChwGqLMDgoZlaalbOk_zjMA0", // <--- THIS IS LIKELY THE CAUSE OF YOUR ERROR. ENSURE IT'S CORRECT.
+          apiKey: "AIzaSyAIFsE6cwpChwGqLMDgoZlaalbOk_zjMA0", 
           authDomain: "rythm-slicer-game.firebaseapp.com",
-          projectId: "rythm-slicer-game", // e.g., "rhythm-slicer-game"
+          projectId: "rythm-slicer-game", 
           storageBucket: "rythm-slicer-game.firebasestorage.app",
           messagingSenderId: "42501787115",
           appId: "1:42501787115:web:fb2fc5bc867e31d4a05dae",
@@ -602,6 +608,7 @@
         let db;
         let auth;
         let userId = null;
+        let username = "Guest"; // Default username display
         let isAuthReady = false;
 
         // User ID Display Element (created dynamically)
@@ -673,6 +680,10 @@
         const sectionGameplay = document.getElementById('section-gameplay');
         const sectionAccount = document.getElementById('section-account'); 
         const loginBtn = document.getElementById('login-btn'); 
+        // New Account UI elements
+        const accountStatusMessage = document.getElementById('account-status-message');
+        const usernameDisplay = document.getElementById('username-display');
+        const logoutBtn = document.getElementById('logout-btn');
 
 
         // Game Constants (adjustable)
@@ -1727,6 +1738,7 @@
                 accuracy: parseFloat(accuracy.toFixed(2)),
                 level: level,
                 userId: userId, // Store the user ID
+                username: username, // Store the username for display
                 timestamp: serverTimestamp() // Use server timestamp for consistent ordering
             };
 
@@ -1808,6 +1820,7 @@
                         accuracy: data.accuracy,
                         level: data.level,
                         userId: data.userId,
+                        username: data.username || 'N/A', // Get username, fallback to N/A
                         date: data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString() : 'N/A' // Convert timestamp
                     });
                 });
@@ -1845,17 +1858,13 @@
             leaderboardData.forEach((entry, index) => {
                 const entryDiv = document.createElement('div');
                 entryDiv.classList.add('leaderboard-entry');
-                // Removed animation logic from here to simplify, it can be re-added via CSS if desired
-                // if (index < 3) { 
-                //     entryDiv.style.animation = `pulse 2s infinite alternate ease-in-out ${index * 0.2}s`;
-                // }
-
-                // Display full user ID
-                const displayUserId = entry.userId || 'N/A';
+                
+                // Display username if available, otherwise truncate userId
+                const displayUserName = entry.username && entry.username !== 'Guest' ? entry.username : `${(entry.userId || 'Guest').substring(0, 8)}...`;
                 entryDiv.innerHTML = `
                     <span>${index + 1}. Score: ${entry.score} (Lvl ${entry.level})</span>
                     <span>Acc: ${entry.accuracy}%</span>
-                    <span class="text-xs text-gray-500 ml-2">User: ${displayUserId.substring(0, 8)}...</span>
+                    <span class="text-xs text-gray-500 ml-2">User: ${displayUserName}</span>
                 `;
                 leaderboardList.appendChild(entryDiv);
             });
@@ -1869,7 +1878,13 @@
                 console.warn("Firebase config is not set correctly. Please paste your actual Firebase config (especially API Key and Project ID) in the script. Features relying on Firestore will not work.");
                 userIdDisplay.textContent = 'User ID: Anonymous (Firebase Config Missing/Invalid)';
                 userId = crypto.randomUUID(); // Assign a temporary ID
+                username = "Guest"; // Default to Guest
+                usernameDisplay.textContent = `Guest (Not Logged In)`; // Update settings display
+                loginBtn.style.display = 'block'; // Show login button
+                logoutBtn.style.display = 'none'; // Hide logout button
+                accountStatusMessage.textContent = 'Login to keep your scores permanently!';
                 isAuthReady = true; // Allow game to proceed, but with local storage only for leaderboard
+                // setupLeaderboardListener(); // Still call, it will fallback to local storage
                 return;
             }
 
@@ -1881,37 +1896,51 @@
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
+                        // Use user's display name if available, otherwise fallback to a truncated UID or "User"
+                        username = user.displayName || `User_${userId.substring(0, 5)}`; 
                         userIdDisplay.textContent = `User ID: ${userId}`;
-                        loginBtn.textContent = 'Logged In'; // User is logged in
-                        loginBtn.disabled = true; // Disable login button
+                        usernameDisplay.textContent = `${username}`; // Update settings display
+                        loginBtn.style.display = 'none'; // Hide login button
+                        logoutBtn.style.display = 'block'; // Show logout button
+                        accountStatusMessage.textContent = `Welcome, ${username}! Your scores are saved.`;
                         isAuthReady = true;
                         // Start listening to leaderboard updates only after auth is ready
                         setupLeaderboardListener();
                     } else {
-                        console.log("No user logged in. Attempting anonymous sign-in.");
-                        userIdDisplay.textContent = 'User ID: Anonymous (Signing in...)';
-                        loginBtn.textContent = 'Login / Register';
-                        loginBtn.disabled = false;
-                        try {
-                            // On GitHub Pages, we default to anonymous sign-in for the main game.
-                            // Users can use auth.html for full login/registration.
-                            await signInAnonymously(auth);
-                            // onAuthStateChanged will be triggered again with the signed-in user
-                        } catch (error) {
-                            console.error("Firebase Auth error during anonymous sign-in:", error);
-                            userId = crypto.randomUUID(); // Fallback to random ID if auth fails
-                            userIdDisplay.textContent = `User ID: ${userId} (Auth Failed)`;
-                            isAuthReady = true;
-                            // Still try to setup listener, it might work for public data or fail gracefully
-                            setupLeaderboardListener(); // Call listener even if anonymous or failed
-                        }
+                        console.log("No user logged in. Setting up as guest.");
+                        userId = crypto.randomUUID(); // Fallback to random ID for guests
+                        username = "Guest";
+                        userIdDisplay.textContent = `User ID: ${userId}`;
+                        usernameDisplay.textContent = `Guest (Not Logged In)`; // Update settings display
+                        loginBtn.style.display = 'block'; // Show login button
+                        logoutBtn.style.display = 'none'; // Hide logout button
+                        accountStatusMessage.textContent = 'Login to keep your scores permanently!';
+                        isAuthReady = true;
+                        // Still try to setup listener, it will fallback to local storage if needed
+                        setupLeaderboardListener(); 
                     }
                 });
             } catch (error) {
                 console.error("Error initializing Firebase:", error);
                 userIdDisplay.textContent = 'User ID: Anonymous (Firebase Init Failed)';
                 userId = crypto.randomUUID(); // Fallback to random ID if Firebase init fails
+                username = "Guest";
+                usernameDisplay.textContent = `Guest (Firebase Failed)`; // Update settings display
+                loginBtn.style.display = 'block'; // Show login button
+                logoutBtn.style.display = 'none'; // Hide logout button
+                accountStatusMessage.textContent = 'Login options currently unavailable.';
                 isAuthReady = true; // Mark as ready to allow game to proceed
+            }
+        }
+
+        // --- Logout Function ---
+        async function handleLogout() {
+            try {
+                await signOut(auth);
+                console.log("User logged out successfully.");
+                // onAuthStateChanged will handle UI update
+            } catch (error) {
+                console.error("Error logging out:", error);
             }
         }
 
@@ -2225,6 +2254,9 @@
             // Updated to open auth.html, assuming it's renamed and in the same directory
             window.open('auth.html', '_blank', 'width=600,height=700,resizable=yes,scrollbars=yes');
         });
+
+        // Handle Logout button click
+        logoutBtn.addEventListener('click', handleLogout);
 
     </script>
 </body>
