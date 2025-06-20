@@ -21,17 +21,13 @@
             projectId: "rythm-slicer-game", // e.g., "my-rhythm-slicer"
             storageBucket: "rythm-slicer-game.firebasestorage.app", // e.g., "my-rhythm-slicer.appspot.com"
             appId: "1:42501787115:web:fb2fc5bc867e31d4a05dae", // e.g., "1:1234567890:web:abcdef123456"
-            messagingSenderId: "42501787115" 
+            messagingSenderId: "42501787115"
         };
 
         // For this deployed version, the "appId" for Firestore paths will be the projectId
         const appIdForFirestore = firebaseConfig.projectId;
 
         // Define a consistent domain to append for Firebase Auth emails.
-        // THIS IS CRUCIAL for converting usernames into valid email formats internally for Firebase Auth.
-        // Choose a unique domain that you own or is unlikely to clash with real emails.
-        // Example: If your game is called "Rhythm Slicer", you might use "@rythmslicer.game".
-        // This makes "myusername" -> "myusername@rythmslicer.game" for Firebase Auth.
         const FIREBASE_AUTH_PSEUDO_DOMAIN = "@rythmslicer.game"; 
 
         let app;
@@ -83,8 +79,8 @@
         // Function to check if a display name (username) already exists in Firestore
         async function isDisplayNameTaken(displayName) {
             // Corrected Path: artifacts/{appId}/public_data/usernames_registry/{displayName.toLowerCase()}
-            const usernamesRegistryRef = collection(db, 'artifacts', appIdForFirestore, 'public_data', 'usernames_registry');
-            const displayNameDocRef = doc(usernamesRegistryRef, displayName.toLowerCase());
+            // The full path to the document is now explicitly provided to doc().
+            const displayNameDocRef = doc(db, 'artifacts', appIdForFirestore, 'public_data', 'usernames_registry', displayName.toLowerCase());
             const docSnap = await getDoc(displayNameDocRef);
             return docSnap.exists();
         }
@@ -125,7 +121,7 @@
                 }
 
                 // Check for existing IP registration
-                // Path changed to artifacts/{appId}/public_data/ips/{ipId}
+                // Corrected Path: artifacts/{appId}/public_data/ips/{ipId}
                 const publicIpsCollectionRef = collection(db, 'artifacts', appIdForFirestore, 'public_data', 'ips');
                 const ipQuery = query(publicIpsCollectionRef, where("ip", "==", userIp));
                 const ipSnapshot = await getDocs(ipQuery);
@@ -159,12 +155,14 @@
                 });
 
                 // Save display name to public_data/usernames_registry collection for uniqueness check
+                // Corrected Path for usernameDocRef: artifacts/{appId}/public_data/usernames_registry/{username.toLowerCase()}
                 const usernamesRegistryRef = collection(db, 'artifacts', appIdForFirestore, 'public_data', 'usernames_registry');
-                const usernameDocRef = doc(usernamesRegistryRef, username.toLowerCase());
+                const usernameDocRef = doc(usernamesRegistryRef, username.toLowerCase()); // This is the document within the collection
                 await setDoc(usernameDocRef, { uid: user.uid, username: username });
 
                 // Save IP to public_data/ips collection
-                const ipDocRef = doc(publicIpsCollectionRef, user.uid); // Use UID as doc ID for IP
+                // Corrected Path for ipDocRef: artifacts/{appId}/public_data/ips/{user.uid}
+                const ipDocRef = doc(publicIpsCollectionRef, user.uid); // This is the document within the collection
                 await setDoc(ipDocRef, { ip: userIp, uid: user.uid });
 
 
@@ -391,7 +389,7 @@
 
         <p id="message"></p>
         <p class="text-sm text-gray-500 text-center">
-            Your username will be used for login. It must be unique.
+            Your username will be used for login.
             </small>
         </p>
         <div id="canvas-id-display" class="pulsating-element"></div> <!-- New element to display Canvas ID -->
