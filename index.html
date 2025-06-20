@@ -574,10 +574,29 @@
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, query, orderBy, limit, getDocs, addDoc, onSnapshot, serverTimestamp, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase Global Variables (MUST BE USED)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        // --- START OF REQUIRED CHANGES FOR GITHUB PAGES DEPLOYMENT ---
+
+        // PASTE YOUR FIREBASE CONFIGURATION OBJECT HERE.
+        // Get this from your Firebase Console -> Project settings -> Your apps -> Web App -> Config
+        const firebaseConfig = {
+          // !! IMPORTANT !! REPLACE ALL THE PLACEHOLDER VALUES BELOW WITH YOUR ACTUAL FIREBASE CONFIGURATION
+          apiKey: "AIzaSyAIFsE6cwpChwGqLMDgoZlaalbOk_zjMA0", // <--- THIS IS LIKELY THE CAUSE OF YOUR ERROR. ENSURE IT'S CORRECT.
+          authDomain: "rythm-slicer-game.firebaseapp.com",
+          projectId: "rythm-slicer-game", // e.g., "rhythm-slicer-game"
+          storageBucket: "rythm-slicer-game.firebasestorage.app",
+          messagingSenderId: "42501787115",
+          appId: "1:42501787115:web:fb2fc5bc867e31d4a05dae",
+          // measurementId: "G-XXXXXXXXXX" // Optional: Uncomment and replace if you have Google Analytics
+        };
+
+        // For GitHub Pages, we use the projectId as the appId for Firestore path consistency.
+        const appId = firebaseConfig.projectId;
+
+        // The __initial_auth_token is specific to the Canvas environment and not used here.
+        const initialAuthToken = null; 
+
+        // --- END OF REQUIRED CHANGES FOR GITHUB PAGES DEPLOYMENT ---
+
 
         let app;
         let db;
@@ -1845,10 +1864,12 @@
 
         // --- Firebase Initialization ---
         async function initializeFirebase() {
-            if (!Object.keys(firebaseConfig).length) {
-                console.warn("Firebase config is empty. Firebase will not be initialized. Features relying on Firestore will not work.");
-                userIdDisplay.textContent = 'User ID: Anonymous (No Firebase)';
-                isAuthReady = true; // Mark as ready even without Firebase for local functionality
+            // Check if firebaseConfig is populated (i.e., not the placeholder)
+            if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY" || !firebaseConfig.projectId) {
+                console.warn("Firebase config is not set correctly. Please paste your actual Firebase config (especially API Key and Project ID) in the script. Features relying on Firestore will not work.");
+                userIdDisplay.textContent = 'User ID: Anonymous (Firebase Config Missing/Invalid)';
+                userId = crypto.randomUUID(); // Assign a temporary ID
+                isAuthReady = true; // Allow game to proceed, but with local storage only for leaderboard
                 return;
             }
 
@@ -1872,15 +1893,12 @@
                         loginBtn.textContent = 'Login / Register';
                         loginBtn.disabled = false;
                         try {
-                            if (initialAuthToken) {
-                                await signInWithCustomToken(auth, initialAuthToken);
-                                // onAuthStateChanged will be triggered again with the signed-in user
-                            } else {
-                                await signInAnonymously(auth);
-                                // onAuthStateChanged will be triggered again with the signed-in user
-                            }
+                            // On GitHub Pages, we default to anonymous sign-in for the main game.
+                            // Users can use auth.html for full login/registration.
+                            await signInAnonymously(auth);
+                            // onAuthStateChanged will be triggered again with the signed-in user
                         } catch (error) {
-                            console.error("Firebase Auth error:", error);
+                            console.error("Firebase Auth error during anonymous sign-in:", error);
                             userId = crypto.randomUUID(); // Fallback to random ID if auth fails
                             userIdDisplay.textContent = `User ID: ${userId} (Auth Failed)`;
                             isAuthReady = true;
