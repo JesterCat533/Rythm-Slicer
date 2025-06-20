@@ -21,8 +21,10 @@
             color: #e6edf3;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            position: relative; /* Needed for absolutely positioned children */
         }
 
+        /* Removed blur from CSS, now handled by JS for canvas content */
         #game-container {
             position: relative;
             display: flex;
@@ -32,11 +34,13 @@
             border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0, 255, 255, 0.2), 0 5px 15px rgba(255, 0, 255, 0.2);
             padding: 20px;
-            max-width: 90vw;
-            width: 800px; /* Base width for the game area */
+            max-width: 95vw; /* Allow a bit more width on smaller screens */
+            width: 1050px; /* Base width for the game area, slightly wider for padding */
             box-sizing: border-box;
             border: 2px solid rgba(0, 255, 255, 0.4);
             overflow: hidden;
+            display: flex; /* Default to flex for game, hidden by script when modals are active */
+            transition: filter 0.2s ease-out; /* Smooth transition for blur */
         }
 
         canvas {
@@ -44,27 +48,44 @@
             display: block;
             border-radius: 15px;
             box-shadow: inset 0 0 15px rgba(0, 255, 255, 0.1);
-            width: 100%; /* Make canvas responsive within its container */
-            height: auto; /* Maintain aspect ratio */
+            width: 1000px; /* Fixed width as per CANVAS_WIDTH */
+            height: 600px; /* Fixed height as per CANVAS_HEIGHT */
             border: 1px solid rgba(0, 255, 255, 0.2);
+            max-width: 100%; /* Ensure responsiveness within container */
+            height: auto; /* Maintain aspect ratio if width changes */
         }
 
         #game-info {
             display: flex;
             justify-content: space-between;
-            width: 100%;
+            width: 1000px; /* Match canvas width */
             margin-bottom: 15px;
             padding: 0 10px;
             box-sizing: border-box;
             align-items: center;
+            flex-wrap: wrap; /* Allow wrapping on small screens */
+            gap: 15px; /* Space between elements */
         }
 
-        #score, #health-bar-container, #combo-display, #accuracy-display {
+        #score, #raw-combo-display, #multiplier-display, #level-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            flex-shrink: 0; /* Prevent shrinking */
+        }
+        #score { flex-grow: 1; text-align: left; }
+        #raw-combo-display { flex-grow: 0; text-align: center; margin-left: auto; }
+        #multiplier-display { flex-grow: 0; text-align: center; margin-right: auto; }
+        #level-display { flex-grow: 0; text-align: right; }
+
+
+        #health-bar-container {
             font-size: 1.5rem;
             font-weight: bold;
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-shrink: 0;
+            min-width: 280px; /* Ensure health bar has enough space */
         }
 
         #health-bar-outer {
@@ -73,33 +94,38 @@
             background-color: #30363d;
             border-radius: 12px;
             overflow: hidden;
-            border: 1px solid rgba(255, 0, 255, 0.4);
-            box-shadow: 0 0 10px rgba(255, 0, 255, 0.2);
+            border: 1px solid rgba(0, 255, 255, 0.4); /* Cyan border */
+            box-shadow: 0 0 10px rgba(0, 255, 255, 0.2); /* Cyan shadow */
         }
 
         #health-bar-inner {
             height: 100%;
             width: 100%;
-            background: linear-gradient(90deg, #ff007f, #ffcc00); /* Vibrant gradient */
+            background: linear-gradient(90deg, #ff007f, #00ffff); /* Pink to Cyan gradient */
             border-radius: 12px;
             transition: width 0.1s ease-out;
         }
 
-        #combo-display {
-            color: #00ffcc; /* Greenish-cyan for combo */
+        #raw-combo-display {
+            color: #e6edf3; /* Default text color for raw combo */
+            min-width: 100px;
+            text-align: center;
+        }
+
+        #multiplier-display {
             font-size: 2rem;
-            text-shadow: 0 0 10px rgba(0, 255, 204, 0.5);
+            text-shadow: 0 0 10px rgba(0, 255, 204, 0.5); /* Default shadow, will be updated by JS */
             min-width: 80px; /* To prevent layout shift */
             text-align: center;
         }
-        #combo-display.pulsate-combo {
+        #multiplier-display.pulsate-combo {
             animation: comboPulse 0.3s ease-out forwards;
         }
 
         @keyframes comboPulse {
-            0% { transform: scale(1); text-shadow: 0 0 10px rgba(0, 255, 204, 0.5); }
-            50% { transform: scale(1.15); text-shadow: 0 0 20px rgba(0, 255, 204, 0.8); }
-            100% { transform: scale(1); text-shadow: 0 0 10px rgba(0, 255, 204, 0.5); }
+            0% { transform: scale(1); /* text-shadow will be set dynamically */ }
+            50% { transform: scale(1.15); /* text-shadow will be set dynamically */ }
+            100% { transform: scale(1); /* text-shadow will be set dynamically */ }
         }
 
         #accuracy-display {
@@ -110,17 +136,25 @@
             background-color: rgba(0, 0, 0, 0.6);
             padding: 8px 15px;
             border-radius: 10px;
-            color: #ffcc00;
+            /* Initial colors for accuracy, will be overwritten by JS */
+            color: #ff007f;
             font-size: 1.3rem;
             font-weight: bold;
-            border: 1px solid rgba(255, 204, 0, 0.3);
-            box-shadow: 0 0 15px rgba(255, 204, 0, 0.2);
+            border: 1px solid rgba(255, 0, 127, 0.3);
+            box-shadow: 0 0 15px rgba(255, 0, 127, 0.2);
             z-index: 50; /* Above canvas, below modals */
+            transition: color 0.1s ease-out, border-color 0.1s ease-out, box-shadow 0.1s ease-out; /* Smooth transitions for color change */
+        }
+
+        #level-display {
+            color: #00ffff; /* Cyan for level display */
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
         }
 
 
-        #game-over-screen, #start-screen, #settings-modal {
-            position: absolute;
+        /* Modals now positioned fixed to cover the entire viewport */
+        #game-over-screen, #start-screen, #settings-modal, #leaderboard-screen {
+            position: fixed; /* Changed to fixed */
             top: 0;
             left: 0;
             width: 100%;
@@ -131,7 +165,7 @@
             justify-content: center;
             align-items: center;
             text-align: center;
-            border-radius: 20px;
+            /* No border-radius here as it's full screen */
             z-index: 100;
             backdrop-filter: blur(5px); /* Frosted glass effect */
             animation: fadeIn 0.3s ease-out;
@@ -142,7 +176,7 @@
             to { opacity: 1; }
         }
 
-        #start-screen h1, #game-over-screen h2 {
+        #start-screen h1, #game-over-screen h2, #leaderboard-screen h1 {
             font-size: 3rem;
             color: #00ffff;
             text-shadow: 0 0 15px rgba(0, 255, 255, 0.6);
@@ -152,7 +186,7 @@
         #game-over-screen p {
             font-size: 1.8rem;
             margin-top: 15px;
-            color: #ffcc00;
+            color: #00ffff; /* Blue for game over stats */
         }
 
         .btn {
@@ -410,7 +444,8 @@
             justify-content: space-between;
             align-items: center;
             padding: 10px 15px;
-            background: linear-gradient(90deg, rgba(255, 0, 127, 0.1), rgba(0, 255, 255, 0.1));
+            /* Changed background gradient to match text colors */
+            background: linear-gradient(90deg, rgba(0, 255, 204, 0.1), rgba(255, 0, 127, 0.1)); 
             border-radius: 8px;
             margin-bottom: 8px;
             font-size: 1.1rem;
@@ -426,18 +461,21 @@
 
         .leaderboard-entry span:first-child {
             font-weight: bold;
-            color: #ffcc00;
+            color: #00ffcc; /* Cyan for scores */
         }
         .leaderboard-entry span:last-child {
-            color: #00ffcc;
+            color: #ff007f; /* Pink for accuracy */
         }
     </style>
 </head>
 <body>
+    <!-- Game Container (initially visible, hidden when modals are open) -->
     <div id="game-container">
         <div id="game-info">
             <div id="score">Score: 0</div>
-            <div id="combo-display">0x</div>
+            <div id="raw-combo-display">Combo: 0</div> <!-- New element for raw combo count -->
+            <div id="multiplier-display">1x</div> <!-- Displays the multiplier with color changes -->
+            <div id="level-display">Level: 1</div> <!-- New Level Display -->
             <div id="health-bar-container">
                 Health:
                 <div id="health-bar-outer">
@@ -445,186 +483,92 @@
                 </div>
             </div>
             <div>
-                <button id="settings-btn" class="settings-btn" title="Settings">⚙️</button>
+                <!-- Removed settings-btn from game-info, handled by main menu -->
             </div>
         </div>
         <canvas id="gameCanvas"></canvas>
         <div id="accuracy-display">Accuracy: 100.00%</div>
+    </div>
 
+    <!-- Modals (now direct children of body and fixed position) -->
+    <div id="start-screen" class="pulsating-element">
+        <h1>Rhythm Slicer</h1>
+        <button id="start-game-btn" class="btn">Start Game</button>
+        <button id="main-menu-options-btn" class="btn">Options</button>
+        <button id="leaderboard-button-main" class="btn">Leaderboard</button>
+    </div>
 
-        <div id="start-screen" class="pulsating-element">
-            <h1>Rhythm Slicer</h1>
-            <button id="start-game-btn" class="btn">Start Game</button>
-        </div>
+    <div id="game-over-screen" style="display: none;">
+        <h2>Game Over!</h2>
+        <p id="final-score">Final Score: 0</p>
+        <p id="final-accuracy">Final Accuracy: 0.00%</p>
+        <p id="final-level">Level Reached: 1</p> <!-- Display final level -->
+        <button id="restart-game-btn" class="btn">Restart</button>
+        <button id="game-over-return-to-main-btn" class="btn">Return to Main Menu</button>
+        <button id="leaderboard-button-gameover" class="btn">View Leaderboard</button>
+        <!-- Leaderboard section is now separate -->
+    </div>
 
-        <div id="game-over-screen" style="display: none;">
-            <h2>Game Over!</h2>
-            <p id="final-score">Final Score: 0</p>
-            <p id="final-accuracy">Final Accuracy: 0.00%</p>
-            <button id="restart-game-btn" class="btn">Restart</button>
-            <div id="leaderboard-section">
-                <h3>Leaderboard</h3>
-                <div id="leaderboard-list">
-                    <!-- Leaderboard entries will be dynamically inserted here -->
+    <div id="settings-modal" style="display: none;">
+        <div class="modal-content">
+            <h3>Game Settings</h3>
+            <div class="settings-nav">
+                <button id="nav-controls" class="active">Controls & Appearance</button>
+                <button id="nav-gameplay">Gameplay & Audio</button>
+                <button id="nav-account">Account</button>
+            </div>
+
+            <div id="section-controls" class="settings-section active">
+                <div class="modal-item">
+                    <span>Left Block Key:</span>
+                    <span id="left-key-display" class="key-display">U</span>
+                </div>
+                <div class="modal-item">
+                    <span>Right Block Key:</span>
+                    <span id="right-key-display" class="key-display">O</span>
+                </div>
+                <div class="modal-item">
+                    <span>Left Block Color:</span>
+                    <input type="color" id="left-color-picker">
+                </div>
+                <div class="modal-item">
+                    <span>Right Block Color:</span>
+                    <input type="color" id="right-color-picker">
                 </div>
             </div>
-        </div>
 
-        <div id="settings-modal" style="display: none;">
-            <div class="modal-content">
-                <h3>Game Settings</h3>
-                <div class="settings-nav">
-                    <button id="nav-controls" class="active">Controls & Appearance</button>
-                    <button id="nav-gameplay">Gameplay & Audio</button>
-                    <button id="nav-account">Account</button> <!-- New Account Tab -->
+            <div id="section-gameplay" class="settings-section">
+                <div class="modal-item">
+                    <span>Music URL (MP3/WAV):</span>
+                    <input type="text" id="music-url-input" placeholder="Paste direct audio URL here" class="flex-grow bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none">
                 </div>
-
-                <div id="section-controls" class="settings-section active">
-                    <div class="modal-item">
-                        <span>Left Block Key:</span>
-                        <span id="left-key-display" class="key-display">U</span>
-                    </div>
-                    <div class="modal-item">
-                        <span>Right Block Key:</span>
-                        <span id="right-key-display" class="key-display">O</span>
-                    </div>
-                    <div class="modal-item">
-                        <span>Left Block Color:</span>
-                        <input type="color" id="left-color-picker">
-                    </div>
-                    <div class="modal-item">
-                        <span>Right Block Color:</span>
-                        <input type="color" id="right-color-picker">
-                    </div>
-                </div>
-
-                <div id="section-gameplay" class="settings-section">
-                    <div class="modal-item">
-                        <span>Note Jump Speed (NJS):</span>
-                        <input type="number" id="njs-input" value="10" min="1" max="20">
-                    </div>
-                    <div class="modal-item">
-                        <span>Music URL (MP3/WAV):</span>
-                        <input type="text" id="music-url-input" placeholder="Paste direct audio URL here" class="flex-grow bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:border-blue-500 focus:outline-none">
-                    </div>
-                    <button id="play-music-btn" class="btn">Play Music</button>
-                </div>
-
-                <!-- New Account Settings Section -->
-                <div id="section-account" class="settings-section">
-                    <p class="text-center text-lg text-gray-300">Login to keep your scores permanently!</p>
-                    <button id="login-btn" class="btn">Login / Register</button>
-                </div>
-                <!-- End New Account Settings Section -->
-
-                <button id="close-settings-btn" class="close-btn">Close</button>
+                <button id="play-music-btn" class="btn">Play Music</button>
             </div>
+
+            <div id="section-account" class="settings-section">
+                <p class="text-center text-lg text-gray-300">Login to keep your scores permanently!</p>
+                <button id="login-btn" class="btn">Login / Register</button>
+            </div>
+
+            <button id="return-to-main-menu-settings-btn" class="close-btn">Return to Main Menu</button>
         </div>
     </div>
+
+    <!-- New Leaderboard Screen -->
+    <div id="leaderboard-screen" style="display: none;">
+        <h1>Leaderboard</h1>
+        <div id="leaderboard-section">
+            <div id="leaderboard-list">
+                <!-- Leaderboard entries will be dynamically inserted here -->
+            </div>
+        </div>
+        <button id="leaderboard-return-to-main-btn" class="btn">Return to Main Menu</button>
+    </div>
+
     <audio id="background-music" loop></audio>
 
     <script>
-        const canvas = document.getElementById('gameCanvas');
-        const ctx = canvas.getContext('2d');
-        const scoreDisplay = document.getElementById('score');
-        const healthBarInner = document.getElementById('health-bar-inner');
-        const comboDisplay = document.getElementById('combo-display');
-        const accuracyDisplay = document.getElementById('accuracy-display');
-        const startScreen = document.getElementById('start-screen');
-        const startGameBtn = document.getElementById('start-game-btn');
-        const gameOverScreen = document.getElementById('game-over-screen');
-        const finalScoreDisplay = document.getElementById('final-score');
-        const finalAccuracyDisplay = document.getElementById('final-accuracy');
-        const restartGameBtn = document.getElementById('restart-game-btn');
-        const settingsBtn = document.getElementById('settings-btn');
-        const settingsModal = document.getElementById('settings-modal');
-        const leftKeyDisplay = document.getElementById('left-key-display');
-        const rightKeyDisplay = document.getElementById('right-key-display');
-        const leftColorPicker = document.getElementById('left-color-picker');
-        const rightColorPicker = document.getElementById('right-color-picker');
-        const njsInput = document.getElementById('njs-input');
-        const musicUrlInput = document.getElementById('music-url-input');
-        const playMusicBtn = document.getElementById('play-music-btn');
-        const closeSettingsBtn = document.getElementById('close-settings-btn');
-        const backgroundMusic = document.getElementById('background-music');
-
-        // Leaderboard elements
-        const leaderboardSection = document.getElementById('leaderboard-section');
-        const leaderboardList = document.getElementById('leaderboard-list');
-
-
-        // Settings Navigation elements
-        const navControls = document.getElementById('nav-controls');
-        const navGameplay = document.getElementById('nav-gameplay');
-        const navAccount = document.getElementById('nav-account'); // New Account tab button
-        const sectionControls = document.getElementById('section-controls');
-        const sectionGameplay = document.getElementById('section-gameplay');
-        const sectionAccount = document.getElementById('section-account'); // New Account section
-        const loginBtn = document.getElementById('login-btn'); // Login button in settings
-
-
-        // Game Constants (adjustable)
-        const CANVAS_WIDTH = 760;
-        const CANVAS_HEIGHT = 450;
-        const TARGET_Y = CANVAS_HEIGHT * 0.85; // Y position where blocks are hit
-        const BLOCK_SPAWN_X_LEFT = CANVAS_WIDTH * 0.25;
-        const BLOCK_SPWN_X_RIGHT = CANVAS_WIDTH * 0.75;
-        const INITIAL_BLOCK_SIZE = 50;
-        const BASE_BLOCK_TRAVEL_DURATION = 2000; // Base duration in ms for a block to travel from top to TARGET_Y
-        const BASE_HIT_WINDOW_FACTOR = 0.3; // 30% of block's travel duration is the hit window
-        const MAX_HEALTH = 100;
-        const HEALTH_LOSS_PER_MISS = 15;
-        const HEALTH_REGEN_PER_HIT = 5; // Health gained per correct hit
-        const PARTICLE_COUNT_ON_HIT = 15;
-        const PARTICLE_LIFETIME = 400; // Milliseconds
-        const CHAIN_MIN_LENGTH = 2; // Minimum blocks in a chain
-        const CHAIN_MAX_LENGTH = 4; // Maximum blocks in a chain
-        const CHAIN_OFFSET_TIME = 150; // Time in ms between chain blocks
-
-        const MAX_ACCURACY_POINTS_PER_NOTE = 115; // Max points for a perfect hit
-        const MIN_ACCURACY_POINTS_PER_NOTE = 15;  // Min points for a hit at the edge of the window
-
-        const POPUP_LIFETIME = 800; // Milliseconds for popup to fade
-        const POPUP_MOVE_SPEED = 0.05; // Pixels per ms
-
-        const CABLE_WIDTH = 8; // Width of the cable connecting double notes
-        const CABLE_RADIUS = 4; // Rounded ends for cable
-
-        const HEALTH_LOSS_ON_BOMB_HIT = HEALTH_LOSS_PER_MISS * 2;
-        const HEALTH_GAIN_ON_BOMB_MISS = HEALTH_REGEN_PER_HIT * 1.5; // Gain more health for avoiding bombs
-
-        // New spawn probabilities (sum to 1.0)
-        const SINGLE_NOTE_CHANCE = 0.40; // Increased to compensate for removed bomb-only spawns
-        const DOUBLE_NOTE_CHANCE = 0.20;
-        const CHAIN_NOTE_CHANCE = 0.40; // Increased to compensate for removed bomb-only spawns
-
-        // New bomb integration chance for individual notes within single or chain spawns
-        const BOMB_INTEGRATION_CHANCE = 0.25; // 25% chance for a single note or chain segment to be a bomb
-
-        // MODIFIED: Wider hit precision window in milliseconds
-        const HIT_PRECISION_WINDOW = 200; // Notes must be hit within +/- 100ms of hitTime
-
-
-        // Game State Variables
-        let score = 0;
-        let health = MAX_HEALTH;
-        let combo = 0;
-        let totalNotesHit = 0; // Only counts non-bomb notes that appear
-        let totalAccuracySum = 0; // Sum of 0-100 accuracy for each hit
-        let blocks = []; // Array to hold active blocks
-        let particles = []; // Array to hold active particles
-        let popups = []; // Array to hold floating text popups
-        let lastBlockSpawnTime = 0;
-        let blockSpawnInterval = 1000; // Initial spawn interval
-        let gameActive = false;
-        let animationFrameId; // For requestAnimationFrame
-        let keysPressed = {}; // To track currently held keys
-        let gameWasActiveBeforeSettings = false; // To know if game was running before pause
-        let doubleNoteCounter = 0; // Unique ID for double notes
-        let gameOverHandled = false; // Flag to prevent multiple leaderboard saves on game over
-
-
-        // Customization
+        // Customization (only keybinds and colors remain)
         let keybinds = {
             'left': 'u',
             'right': 'o'
@@ -633,15 +577,153 @@
             'left': '#00ffff', // Cyan
             'right': '#ff007f' // Pink
         };
-        let awaitingKeybind = null; // 'left' or 'right' if waiting for user input
-        let noteJumpSpeed = 10; // NJS: 1-20 (higher is faster)
+
+        // All possible keys for slow blocks, excluding left/right keybinds
+        // This array is now initialized *after* keybinds are defined, to prevent ReferenceError.
+        const ALL_POSSIBLE_SLOW_KEYS = Array.from({length: 26}, (_, i) => String.fromCharCode(97 + i)) // a-z
+            .concat(Array.from({length: 10}, (_, i) => String.fromCharCode(48 + i))) // 0-9
+            .filter(key => key !== keybinds['left'] && key !== keybinds['right']);
+
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const healthBarInner = document.getElementById('health-bar-inner');
+        const rawComboDisplay = document.getElementById('raw-combo-display'); // New: Raw combo count
+        const multiplierDisplay = document.getElementById('multiplier-display'); // Renamed: Multiplier display
+        const levelDisplay = document.getElementById('level-display'); // Level Display Element
+        const accuracyDisplay = document.getElementById('accuracy-display');
+        const startScreen = document.getElementById('start-screen');
+        const startGameBtn = document.getElementById('start-game-btn');
+        const mainMenuOptionsBtn = document.getElementById('main-menu-options-btn'); // New: Options button on main menu
+        const leaderboardButtonMain = document.getElementById('leaderboard-button-main'); // New: Leaderboard button on main menu
+        const gameOverScreen = document.getElementById('game-over-screen');
+        const finalScoreDisplay = document.getElementById('final-score');
+        const finalAccuracyDisplay = document.getElementById('final-accuracy');
+        const finalLevelDisplay = document.getElementById('final-level'); // Final Level Display
+        const restartGameBtn = document.getElementById('restart-game-btn');
+        const gameOverReturnToMainBtn = document.getElementById('game-over-return-to-main-btn'); // New: Return to Main from game over
+        const leaderboardButtonGameOver = document.getElementById('leaderboard-button-gameover'); // New: Leaderboard button on game over
+        const settingsModal = document.getElementById('settings-modal');
+        const returnToMainMenuSettingsBtn = document.getElementById('return-to-main-menu-settings-btn'); // New: Return to Main from settings
+        const leftKeyDisplay = document.getElementById('left-key-display');
+        const rightKeyDisplay = document.getElementById('right-key-display');
+        const leftColorPicker = document.getElementById('left-color-picker');
+        const rightColorPicker = document.getElementById('right-color-picker');
+        const musicUrlInput = document.getElementById('music-url-input');
+        const playMusicBtn = document.getElementById('play-music-btn');
+        const backgroundMusic = document.getElementById('background-music');
+        const gameContainer = document.getElementById('game-container'); // Get the game container
+
+        // Leaderboard elements
+        const leaderboardScreen = document.getElementById('leaderboard-screen'); // The new leaderboard screen
+        const leaderboardList = document.getElementById('leaderboard-list');
+        const leaderboardReturnToMainBtn = document.getElementById('leaderboard-return-to-main-btn'); // Button on leaderboard screen
+
+
+        // Settings Navigation elements
+        const navControls = document.getElementById('nav-controls');
+        const navGameplay = document.getElementById('nav-gameplay');
+        const navAccount = document.getElementById('nav-account'); 
+        const sectionControls = document.getElementById('section-controls');
+        const sectionGameplay = document.getElementById('section-gameplay');
+        const sectionAccount = document.getElementById('section-account'); 
+        const loginBtn = document.getElementById('login-btn'); 
+
+
+        // Game Constants (adjustable)
+        const CANVAS_WIDTH = 1000; // Increased width
+        const CANVAS_HEIGHT = 600; // Increased height
+        const TARGET_Y = CANVAS_HEIGHT * 0.85; // Y position where blocks are hit
+        const INITIAL_BLOCK_SIZE = 50;
+        const BASE_BLOCK_TRAVEL_DURATION = 2000; // Base duration in ms for a block to travel (slower initial speed)
+        const SLOW_BLOCK_TRAVEL_FACTOR = 2; // Slow block falls at half the speed (twice the duration)
+        const MAX_HEALTH = 100;
+        const HEALTH_LOSS_PER_MISS = 15;
+        const HEALTH_REGEN_PER_HIT = 5; 
+        const PARTICLE_COUNT_ON_HIT = 15;
+        const PARTICLE_LIFETIME = 400; // Milliseconds
+        const CHAIN_MIN_LENGTH = 2; 
+        const CHAIN_MAX_LENGTH = 4; 
+        const CHAIN_OFFSET_TIME = 200; // Time in ms between chain blocks - increased for spacing
+
+        const MAX_ACCURACY_POINTS_PER_NOTE = 115; 
+        const MIN_ACCURACY_POINTS_PER_NOTE = 15;  
+
+        const POPUP_LIFETIME = 800; // Milliseconds for popup to fade
+        const POPUP_MOVE_SPEED = 0.05; 
+
+        const CABLE_WIDTH = 8; 
+        const CABLE_RADIUS = 4; 
+
+        const HEALTH_LOSS_ON_BOMB_HIT = HEALTH_LOSS_PER_MISS * 2;
+        const HEALTH_GAIN_ON_BOMB_MISS = HEALTH_REGEN_PER_HIT * 1.5; 
+
+        // Spawn chances
+        const SINGLE_NOTE_CHANCE = 0.35; // Reduced to make room for slow blocks
+        const DOUBLE_NOTE_CHANCE = 0.20;
+        const CHAIN_NOTE_CHANCE = 0.35; // Reduced
+        const SLOW_BLOCK_CHANCE = 0.10; // New: Chance for slow block
+        const BOMB_INTEGRATION_CHANCE = 0.25; 
+
+        const HIT_PRECISION_WINDOW = 200; 
+
+        // Combo Multiplier Constants
+        const COMBO_MULTIPLIERS = [1, 3, 5, 10]; // Multiplier values
+        const COMBO_LEVEL_UP_HITS = 5; // Notes needed for each multiplier increase
+        const COMBO_COLORS = [
+            '#00ffcc', // 1x (Greenish-cyan, original combo color)
+            '#66ffb3', // 3x (Lighter green)
+            '#ffcc00', // 5x (Yellow)
+            '#ff007f'  // 10x (Pink/Red, matching right block color)
+        ];
+
+        // Level System Constants
+        const LEVEL_UP_DURATION = 60000; // 1 minute in milliseconds
+        const BASE_NJS_VALUE = 5; // Starting NJS level (for reference)
+        const NJS_PER_LEVEL_INCREASE = 5; // NJS increase per level, as requested
+        const BASE_SPAWN_INTERVAL = 1200; // Initial block spawn interval (ms)
+        const SPAWN_INTERVAL_DECREASE_PER_LEVEL = 100; // ms decrease in spawn interval per level
+        const MIN_SPAWN_INTERVAL = 400; // Minimum spawn interval to prevent unplayability
+
+        // Lane Variation Constants
+        const LANE_COUNT_PER_SIDE = 5; // 5 lanes on left, 5 on right
+        let leftLaneCenters = []; // Stores the X coordinates for the center of each left lane
+        let rightLaneCenters = []; // Stores the X coordinates for the center of each right lane
+
+
+        // Game State Variables
+        let score = 0;
+        let health = MAX_HEALTH;
+        let rawComboCount = 0; // The actual combo count
+        let consecutiveHits = 0; // Tracks hits for multiplier progression
+        let currentComboLevel = 0; // Index for COMBO_MULTIPLIERS array
+        let totalNotesHit = 0; 
+        let totalAccuracySum = 0; 
+        let blocks = []; 
+        let particles = []; 
+        let popups = []; 
+        let lastBlockSpawnTime = 0;
+        let blockSpawnInterval = BASE_SPAWN_INTERVAL; // Initialized with BASE_SPAWN_INTERVAL
+        let gameActive = false;
+        let animationFrameId; 
+        let keysPressed = {}; 
+        let gameWasActiveBeforeSettings = false; // Flag to remember if game was active when settings opened
+        let doubleNoteCounter = 0; 
+        let gameOverHandled = false; 
+
+        let level = 1; // Current game level
+        let lastLevelUpTime = 0; // Timestamp of the last level up
+
+        let activeSlowBlock = null; // New: Holds the reference to the current active slow block
+
+        let awaitingKeybind = null; 
 
         // Tone.js Audio Setup
         let kickSynth, hiHatSynth, scratchSynth;
-        let synthsInitialized = false; // Global flag to ensure synths are initialized only once
+        let synthsInitialized = false; 
 
         function setupAudioSynths() {
-            // Check if Tone is defined before trying to use it
             if (typeof Tone === 'undefined') {
                 console.error("Tone.js is not loaded during setupAudioSynths. This should not happen if called after Tone.start().");
                 return;
@@ -651,48 +733,30 @@
                 return;
             }
 
-            // Kick Drum: Membrane Synth for punchy low end
             kickSynth = new Tone.MembraneSynth({
                 pitchDecay: 0.02,
                 octaves: 10,
                 oscillator: { type: "sine" },
                 envelope: {
-                    attack: 0.001,
-                    decay: 0.4,
-                    sustain: 0.01,
-                    release: 0.8,
-                    attackCurve: "exponential"
+                    attack: 0.001, decay: 0.4, sustain: 0.01, release: 0.8, attackCurve: "exponential"
                 }
-            }).toDestination(); // Use .toDestination() for Tone 14.x
+            }).toDestination(); 
 
-            // Hi-Hat: Noise Synth with a high-pass filter
             hiHatSynth = new Tone.NoiseSynth({
                 noise: { type: "white" },
                 envelope: {
-                    attack: 0.001,
-                    decay: 0.1,
-                    sustain: 0.01,
-                    release: 0.05
+                    attack: 0.001, decay: 0.1, sustain: 0.01, release: 0.05
                 },
                 filterEnvelope: {
-                    attack: 0.001,
-                    decay: 0.1,
-                    sustain: 0.01,
-                    release: 0.05,
-                    baseFrequency: 4000,
-                    octaves: -2,
-                    exponent: 2
+                    attack: 0.001, decay: 0.1, sustain: 0.01, release: 0.05,
+                    baseFrequency: 4000, octaves: -2, exponent: 2
                 }
             }).toDestination();
 
-            // Scratch Sound: Complex noise/oscillator for jarring effect
             scratchSynth = new Tone.PolySynth(Tone.Synth, {
                 oscillator : { type : "sawtooth" },
                 envelope : {
-                    attack : 0.01,
-                    decay : 0.1,
-                    sustain : 0.01,
-                    release : 0.2
+                    attack : 0.01, decay : 0.1, sustain : 0.01, release : 0.2
                 }
             }).toDestination();
 
@@ -715,10 +779,28 @@
             ctx.closePath();
         }
 
-        // Initialize canvas dimensions
+        // Initialize canvas dimensions and lane positions
         function initCanvas() {
             canvas.width = CANVAS_WIDTH;
             canvas.height = CANVAS_HEIGHT;
+
+            leftLaneCenters = [];
+            rightLaneCenters = [];
+            const halfCanvasWidth = CANVAS_WIDTH / 2;
+            
+            // Calculate positions for 5 lanes on the left side
+            const leftLaneTotalWidth = halfCanvasWidth;
+            const leftLaneSpacing = leftLaneTotalWidth / LANE_COUNT_PER_SIDE;
+            for (let i = 0; i < LANE_COUNT_PER_SIDE; i++) {
+                leftLaneCenters.push((i * leftLaneSpacing) + (leftLaneSpacing / 2));
+            }
+
+            // Calculate positions for 5 lanes on the right side
+            const rightLaneTotalWidth = halfCanvasWidth;
+            const rightLaneSpacing = rightLaneTotalWidth / LANE_COUNT_PER_SIDE;
+            for (let i = 0; i < LANE_COUNT_PER_SIDE; i++) {
+                rightLaneCenters.push(halfCanvasWidth + (i * rightLaneSpacing) + (rightLaneSpacing / 2));
+            }
         }
 
         // Function to clamp a value between a min and max
@@ -732,22 +814,37 @@
         function resetGame() {
             score = 0;
             health = MAX_HEALTH;
-            combo = 0;
+            rawComboCount = 0; // Reset raw combo
+            consecutiveHits = 0; 
+            currentComboLevel = 0; 
             totalNotesHit = 0;
             totalAccuracySum = 0;
             blocks = [];
             particles = [];
             popups = [];
             lastBlockSpawnTime = 0;
-            blockSpawnInterval = 1000;
+            blockSpawnInterval = BASE_SPAWN_INTERVAL; // Reset to base interval
             gameActive = true;
-            gameOverHandled = false; // Reset the flag
+            gameOverHandled = false; 
+            activeSlowBlock = null; // Reset active slow block
+
+            level = 1; // Reset level
+            lastLevelUpTime = performance.now(); // Start level timer
+
             updateScoreDisplay();
             updateHealthBar();
-            updateComboDisplay();
-            updateAccuracyDisplay();
+            updateRawComboDisplay(); // Update raw combo display
+            updateMultiplierDisplay(); // Update multiplier display
+            updateAccuracyDisplay(); // Update accuracy display immediately
+            updateLevelDisplay(); // Update level display
+
+            // Show game elements
+            gameContainer.style.display = 'flex'; 
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
+            leaderboardScreen.style.display = 'none'; // Hide leaderboard screen too
+            
+            // Ensure no lingering animation frames if restarting from game over
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
             }
@@ -767,9 +864,11 @@
             cancelAnimationFrame(animationFrameId);
             finalScoreDisplay.textContent = `Final Score: ${score}`;
             finalAccuracyDisplay.textContent = `Final Accuracy: ${getOverallAccuracy().toFixed(2)}%`;
+            finalLevelDisplay.textContent = `Level Reached: ${level}`; // Display final level
             gameOverScreen.style.display = 'flex';
+            gameContainer.style.display = 'none'; // Hide game container
             backgroundMusic.pause();
-            displayLeaderboard(); 
+            // Leaderboard is now displayed when user clicks 'View Leaderboard' button
             if (typeof Tone !== 'undefined' && Tone.Transport) {
                 Tone.Transport.stop();
                 Tone.Transport.cancel();
@@ -789,27 +888,55 @@
             }
         }
 
-        // Update combo display and trigger pulsation
-        function updateComboDisplay() {
-            comboDisplay.textContent = `${combo}x`;
-            comboDisplay.classList.remove('pulsate-combo');
-            void comboDisplay.offsetWidth; 
-            comboDisplay.classList.add('pulsate-combo');
+        // Update raw combo display
+        function updateRawComboDisplay() {
+            rawComboDisplay.textContent = `Combo: ${rawComboCount}`;
+        }
+
+        // Update multiplier display and trigger pulsation
+        function updateMultiplierDisplay() {
+            multiplierDisplay.textContent = `${COMBO_MULTIPLIERS[currentComboLevel]}x`; // Show multiplier
+            const currentColor = COMBO_COLORS[currentComboLevel];
+            multiplierDisplay.style.color = currentColor; 
+            multiplierDisplay.style.textShadow = `0 0 10px ${currentColor}80`; 
+
+            multiplierDisplay.classList.remove('pulsate-combo');
+            void multiplierDisplay.offsetWidth; 
+            multiplierDisplay.classList.add('pulsate-combo');
+        }
+
+        // Update level display
+        function updateLevelDisplay() {
+            levelDisplay.textContent = `Level: ${level}`;
         }
 
         // Increment combo
         function incrementCombo() {
-            combo++;
-            updateComboDisplay();
+            rawComboCount++; // Increment raw combo count
+            updateRawComboDisplay(); // Update raw combo display
+
+            consecutiveHits++; 
+
+            // Check if combo multiplier should increase
+            if (currentComboLevel < COMBO_MULTIPLIERS.length - 1 && consecutiveHits % COMBO_LEVEL_UP_HITS === 0) {
+                currentComboLevel++;
+                updateMultiplierDisplay(); // Update display for new multiplier
+            } else {
+                updateMultiplierDisplay(); // Still update to trigger pulse on every hit
+            }
         }
 
         // Reset combo
         function resetCombo() {
-            if (combo > 0) {
-                combo = 0;
-                updateComboDisplay();
+            if (rawComboCount > 0 || consecutiveHits > 0) {
+                rawComboCount = 0; // Reset raw combo
+                consecutiveHits = 0; 
+                currentComboLevel = 0; 
+                updateRawComboDisplay(); // Update raw combo display
+                updateMultiplierDisplay(); // Update multiplier display
                 if (scratchSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') {
-                    scratchSynth.triggerAttackRelease("C2", "0.2", Tone.now()); 
+                    // Added a small offset to Tone.now() to ensure strictly increasing time
+                    scratchSynth.triggerAttackRelease("C2", "0.2", Tone.now() + 0.0001); 
                 }
             }
         }
@@ -821,25 +948,124 @@
             return (totalAccuracySum / maxPossibleAccuracySum) * 100;
         }
 
-        function updateAccuracyDisplay() {
-            accuracyDisplay.textContent = `Accuracy: ${getOverallAccuracy().toFixed(2)}%`;
+        // Function to interpolate colors based on accuracy
+        function getAccuracyColor(accuracy) {
+            // Pink: R=255, G=0, B=127 (#ff007f) - for 100% accuracy
+            // Blue: R=0, G=255, B=255 (#00ffff) - for 0% accuracy
+            const pink = { r: 255, g: 0, b: 127 };
+            const blue = { r: 0, g: 255, b: 255 };
+
+            // Normalize accuracy to a factor between 0 (blue) and 1 (pink)
+            const factor = clamp(accuracy / 100, 0, 1);
+
+            const r = Math.round(blue.r * (1 - factor) + pink.r * factor);
+            const g = Math.round(blue.g * (1 - factor) + pink.g * factor);
+            const b = Math.round(blue.b * (1 - factor) + pink.b * factor);
+
+            return `rgb(${r}, ${g}, ${b})`;
         }
+
+
+        function updateAccuracyDisplay() {
+            const currentAccuracy = getOverallAccuracy();
+            accuracyDisplay.textContent = `Accuracy: ${currentAccuracy.toFixed(2)}%`;
+            
+            const accuracyColor = getAccuracyColor(currentAccuracy);
+            accuracyDisplay.style.color = accuracyColor;
+            // Adjust border and shadow to use rgba with proper opacity for glow effect
+            accuracyDisplay.style.borderColor = accuracyColor.replace('rgb', 'rgba').replace(')', ', 0.6)'); 
+            accuracyDisplay.style.boxShadow = `0 0 15px ${accuracyColor.replace('rgb', 'rgba').replace(')', ', 0.4)')}`; 
+        }
+
+        // Update game level based on time
+        function updateLevel(currentTime) {
+            if (currentTime - lastLevelUpTime > LEVEL_UP_DURATION) {
+                level++;
+                lastLevelUpTime = currentTime;
+                updateLevelDisplay();
+                
+                // Decrease spawn interval as level increases (more frequent notes)
+                blockSpawnInterval = Math.max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - (level * SPAWN_INTERVAL_DECREASE_PER_LEVEL));
+                
+                console.log(`Level Up! New Level: ${level}, New Spawn Interval: ${blockSpawnInterval.toFixed(0)}ms`);
+            }
+        }
+
 
         // Spawn a new block or chain or double note or bomb
         function spawnBlock(timestamp) {
-            const blockTravelDuration = BASE_BLOCK_TRAVEL_DURATION / (noteJumpSpeed / 5);
+            const currentNJS = BASE_NJS_VALUE + (level - 1) * NJS_PER_LEVEL_INCREASE;
+            
+            // Base travel duration, will be modified for slow blocks
+            let blockTravelDuration = BASE_BLOCK_TRAVEL_DURATION / (currentNJS / BASE_NJS_VALUE); 
             const startY = -INITIAL_BLOCK_SIZE;
 
             const spawnTypeRoll = Math.random();
+            let blockTypeToSpawn;
+
+            // Determine block type based on probabilities
             if (spawnTypeRoll < SINGLE_NOTE_CHANCE) {
-                const laneType = Math.random() < 0.5 ? 'left' : 'right';
-                const x = laneType === 'left' ? BLOCK_SPAWN_X_LEFT : BLOCK_SPWN_X_RIGHT;
-                const isBomb = Math.random() < BOMB_INTEGRATION_CHANCE; 
-                blocks.push({
-                    x: x,
+                blockTypeToSpawn = 'single';
+            } else if (spawnTypeRoll < SINGLE_NOTE_CHANCE + DOUBLE_NOTE_CHANCE) {
+                blockTypeToSpawn = 'double';
+            } else if (spawnTypeRoll < SINGLE_NOTE_CHANCE + DOUBLE_NOTE_CHANCE + CHAIN_NOTE_CHANCE) {
+                blockTypeToSpawn = 'chain';
+            } else {
+                blockTypeToSpawn = 'slow'; // This is the new slow block
+            }
+
+            // Logic to ensure only one slow block is active
+            if (blockTypeToSpawn === 'slow' && activeSlowBlock !== null) {
+                // If a slow block is already active, revert to spawning a normal block type
+                const normalSpawnRoll = Math.random();
+                if (normalSpawnRoll < 0.5) { // 50% chance for single
+                    blockTypeToSpawn = 'single';
+                } else { // 50% chance for chain
+                    blockTypeToSpawn = 'chain';
+                }
+            }
+
+
+            if (blockTypeToSpawn === 'slow') {
+                // Slower falling speed: half the speed means twice the travel duration
+                blockTravelDuration *= SLOW_BLOCK_TRAVEL_FACTOR; 
+                const randomContent = ALL_POSSIBLE_SLOW_KEYS[Math.floor(Math.random() * ALL_POSSIBLE_SLOW_KEYS.length)];
+                
+                // Slow blocks appear in a single, central lane (or choose a random lane, for now central)
+                const randomLaneX = leftLaneCenters[Math.floor(LANE_COUNT_PER_SIDE / 2)]; // Use a central lane
+                
+                const newSlowBlock = {
+                    x: randomLaneX,
                     y: startY,
                     size: INITIAL_BLOCK_SIZE,
-                    type: laneType,
+                    type: 'slow', // New type
+                    content: randomContent.toUpperCase(), // Store content (number/letter)
+                    hitTime: timestamp + blockTravelDuration,
+                    state: 'incoming', // Can be 'incoming', 'active', 'hit', 'missed'
+                    isSlicing: false,
+                    sliceProgress: 0,
+                    opacity: 1,
+                    isChain: false,
+                    isDouble: false,
+                    isBomb: false, 
+                    bombProgress: 0,
+                    blockTravelDuration: blockTravelDuration
+                };
+                blocks.push(newSlowBlock);
+                activeSlowBlock = newSlowBlock; // Set the new slow block as the active one
+
+            } else if (blockTypeToSpawn === 'single') {
+                const laneType = Math.random() < 0.5 ? 'left' : 'right';
+                const isBomb = Math.random() < BOMB_INTEGRATION_CHANCE; 
+
+                const xCenters = laneType === 'left' ? leftLaneCenters : rightLaneCenters;
+                const randomLaneX = xCenters[Math.floor(Math.random() * xCenters.length)];
+
+                blocks.push({
+                    x: randomLaneX, 
+                    y: startY,
+                    size: INITIAL_BLOCK_SIZE,
+                    type: laneType, // Bomb's type MUST match its lane to get the correct base color
                     hitTime: timestamp + blockTravelDuration,
                     state: 'incoming',
                     isSlicing: false,
@@ -851,10 +1077,11 @@
                     bombProgress: 0,
                     blockTravelDuration: blockTravelDuration
                 });
-            } else if (spawnTypeRoll < SINGLE_NOTE_CHANCE + DOUBLE_NOTE_CHANCE) {
+            } else if (blockTypeToSpawn === 'double') {
                 const currentDoubleId = doubleNoteCounter++;
+
                 blocks.push({
-                    x: BLOCK_SPAWN_X_LEFT,
+                    x: leftLaneCenters[Math.floor(LANE_COUNT_PER_SIDE / 2)], 
                     y: startY,
                     size: INITIAL_BLOCK_SIZE,
                     type: 'left',
@@ -871,7 +1098,7 @@
                     blockTravelDuration: blockTravelDuration
                 });
                 blocks.push({
-                    x: BLOCK_SPWN_X_RIGHT,
+                    x: rightLaneCenters[Math.floor(LANE_COUNT_PER_SIDE / 2)], 
                     y: startY,
                     size: INITIAL_BLOCK_SIZE,
                     type: 'right',
@@ -887,17 +1114,20 @@
                     bombProgress: 0,
                     blockTravelDuration: blockTravelDuration
                 });
-            } else { 
+            } else if (blockTypeToSpawn === 'chain') { 
                 const laneType = Math.random() < 0.5 ? 'left' : 'right';
-                const x = laneType === 'left' ? BLOCK_SPAWN_X_LEFT : BLOCK_SPWN_X_RIGHT;
                 const chainLength = Math.floor(Math.random() * (CHAIN_MAX_LENGTH - CHAIN_MIN_LENGTH + 1)) + CHAIN_MIN_LENGTH;
+
+                const xCenters = laneType === 'left' ? leftLaneCenters : rightLaneCenters;
+                const randomLaneX = xCenters[Math.floor(Math.random() * xCenters.length)];
+
                 for (let i = 0; i < chainLength; i++) {
                     const isBomb = Math.random() < BOMB_INTEGRATION_CHANCE; 
                     blocks.push({
-                        x: x,
+                        x: randomLaneX, 
                         y: startY,
                         size: INITIAL_BLOCK_SIZE,
-                        type: laneType,
+                        type: laneType, // Bomb's type MUST match its lane to get the correct base color
                         hitTime: timestamp + blockTravelDuration + (i * CHAIN_OFFSET_TIME),
                         state: 'incoming',
                         isSlicing: false,
@@ -920,54 +1150,81 @@
             for (let i = blocks.length - 1; i >= 0; i--) {
                 const block = blocks[i];
 
+                // If block is already slicing, continue its animation until it disappears
                 if (block.isSlicing) {
                     block.sliceProgress += deltaTime / 150; 
                     block.opacity = 1 - block.sliceProgress;
                     if (block.opacity <= 0) {
+                        if (block.type === 'slow' && block === activeSlowBlock) {
+                            activeSlowBlock = null; // Clear active slow block reference
+                        }
                         blocks.splice(i, 1);
                     }
                     continue; 
                 }
 
+                // Calculate current Y position
                 const progress = (currentTime - (block.hitTime - block.blockTravelDuration)) / block.blockTravelDuration;
                 block.y = -INITIAL_BLOCK_SIZE + (TARGET_Y + INITIAL_BLOCK_SIZE) * progress;
 
+                // Update bomb visual progress
                 if (block.isBomb) {
                     const appearanceStartProgress = 0.5; 
                     const appearanceEndProgress = 0.9; 
                     const currentVisualProgress = (block.y - (-INITIAL_BLOCK_SIZE)) / (TARGET_Y + INITIAL_BLOCK_SIZE);
                     block.bombProgress = clamp((currentVisualProgress - appearanceStartProgress) / (appearanceEndProgress - appearanceStartProgress), 0, 1);
                 }
+                
+                // For slow blocks, transition state to 'active' once visible
+                if (block.type === 'slow' && block.state === 'incoming' && block.y > -INITIAL_BLOCK_SIZE) {
+                    block.state = 'active';
+                }
 
-                if (block.state === 'incoming') {
+                // Check for misses (applies to all block types)
+                if (block.state === 'incoming' || block.state === 'active') { // Check both incoming and active states for miss
                     const missWindowEnd = block.hitTime + HIT_PRECISION_WINDOW / 2; 
-                    if (currentTime > missWindowEnd) {
-                        if (block.isBomb) {
-                            health = clamp(health + HEALTH_GAIN_ON_BOMB_MISS, 0, MAX_HEALTH);
-                            updateHealthBar();
-                            createParticles(block.x, TARGET_Y, 'health_gain'); 
-                            createPopup(block.x, block.y, `+${HEALTH_GAIN_ON_BOMB_MISS} Health!`, '#00ff00'); 
-                            block.isSlicing = true;
-                            console.log("BOMB MISSED (passed line): Health gained.");
-                        } else {
+                    if (block.type === 'slow') {
+                        // Slow blocks miss if they pass the entire canvas height
+                        if (block.y > CANVAS_HEIGHT) {
                             health -= HEALTH_LOSS_PER_MISS;
                             updateHealthBar();
                             resetCombo(); 
-                            createParticles(block.x, TARGET_Y, 'miss');
-                            block.isSlicing = true;
-                            if (hiHatSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') hiHatSynth.triggerAttackRelease("16n", Tone.now() + 0.001); 
-                            totalNotesHit++; 
-                            updateAccuracyDisplay();
-                            console.log("NOTE MISSED (passed line): Health reduced, combo reset.");
+                            createParticles(block.x, block.y, 'miss');
+                            createPopup(block.x, block.y, `MISS!`, '#ff007f'); // Miss for slow block
+                            block.isSlicing = true; // Make it disappear after missing
+                            activeSlowBlock = null; // Clear active slow block reference on miss
+                            console.log("SLOW BLOCK MISSED (passed screen): Health reduced, combo reset.");
+                        }
+                    } else { // Normal, double, chain, bomb blocks
+                        if (currentTime > missWindowEnd) {
+                            if (block.isBomb) {
+                                health = clamp(health + HEALTH_GAIN_ON_BOMB_MISS, 0, MAX_HEALTH);
+                                updateHealthBar();
+                                createParticles(block.x, TARGET_Y, 'health_gain'); 
+                                createPopup(block.x, block.y, `+${HEALTH_GAIN_ON_BOMB_MISS} Health!`, '#00ff00'); 
+                                block.isSlicing = true;
+                                console.log("BOMB MISSED (passed line): Health gained.");
+                            } else {
+                                health -= HEALTH_LOSS_PER_MISS;
+                                updateHealthBar();
+                                resetCombo(); 
+                                createParticles(block.x, TARGET_Y, 'miss');
+                                block.isSlicing = true;
+                                // Added a small offset to Tone.now() to ensure strictly increasing time
+                                if (hiHatSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') hiHatSynth.triggerAttackRelease("16n", Tone.now() + 0.0002); 
+                                totalNotesHit++; 
+                                updateAccuracyDisplay();
+                                console.log("NOTE MISSED (passed line): Health reduced, combo reset.");
 
-                            if (block.isDouble && block.doubleId !== undefined) {
-                                const pairedBlock = blocks.find(b => b.doubleId === block.doubleId && b !== block && b.state === 'incoming');
-                                if (pairedBlock) {
-                                    pairedBlock.isSlicing = true; 
-                                    pairedBlock.state = 'missed'; 
-                                    totalNotesHit++; 
-                                    updateAccuracyDisplay();
-                                    console.log("PAIRED DOUBLE NOTE MISSED (passed line).");
+                                if (block.isDouble && block.doubleId !== undefined) {
+                                    const pairedBlock = blocks.find(b => b.doubleId === block.doubleId && b !== block && (b.state === 'incoming' || b.state === 'active'));
+                                    if (pairedBlock) {
+                                        pairedBlock.isSlicing = true; 
+                                        pairedBlock.state = 'missed'; 
+                                        totalNotesHit++; 
+                                        updateAccuracyDisplay();
+                                        console.log("PAIRED DOUBLE NOTE MISSED (passed line).");
+                                    }
                                 }
                             }
                         }
@@ -987,46 +1244,95 @@
                 return;
             }
 
-            keysPressed[keyPressed] = true;
+            let slowBlockHandled = false;
+            let normalBlockHandled = false;
+            
+            // 1. Prioritize handling the SINGLE active Slow Block
+            if (activeSlowBlock && activeSlowBlock.state === 'active' && !activeSlowBlock.isSlicing) {
+                if (keyPressed === activeSlowBlock.content.toLowerCase()) {
+                    // Correct key for slow block
+                    activeSlowBlock.state = 'hit';
+                    activeSlowBlock.isSlicing = true; // Start slicing animation
+                    const basePointsGained = 115; // Always max points for slow block
+                    score += Math.round(basePointsGained * COMBO_MULTIPLIERS[currentComboLevel]);
+                    updateScoreDisplay();
+                    health = clamp(health + HEALTH_REGEN_PER_HIT, 0, MAX_HEALTH);
+                    updateHealthBar();
+                    incrementCombo();
+                    createParticles(activeSlowBlock.x, activeSlowBlock.y, 'health_gain'); // Greenish particles for slow hit
+                    createPopup(activeSlowBlock.x, activeSlowBlock.y, `+${Math.round(basePointsGained * COMBO_MULTIPLIERS[currentComboLevel])} PERFECT!`, '#00ffcc');
+                    // Added a small offset to Tone.now() to ensure strictly increasing time
+                    if (kickSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') kickSynth.triggerAttackRelease("G4", "0.1", Tone.now() + 0.0003);
+                    activeSlowBlock = null; // Clear the reference as it's handled
+                    slowBlockHandled = true;
+                } else if (ALL_POSSIBLE_SLOW_KEYS.includes(keyPressed) && keyPressed !== keybinds['left'] && keyPressed !== keybinds['right']) {
+                    // Pressed a key that's meant for slow blocks, but it's the wrong key for *this* slow block.
+                    // Also ensures it's NOT a normal lane key.
+                    health -= HEALTH_LOSS_PER_MISS; // Deduct health
+                    updateHealthBar();
+                    resetCombo(); // Reset combo on wrong key
+                    createParticles(activeSlowBlock.x, activeSlowBlock.y, 'miss');
+                    createPopup(activeSlowBlock.x, activeSlowBlock.y, `- Health (Wrong Key)!`, '#ff007f');
+                    // Added a small offset to Tone.now() to ensure strictly increasing time
+                    if (hiHatSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') hiHatSynth.triggerAttackRelease("16n", Tone.now() + 0.0004);
+                    // Block does NOT get sliced, it remains to be hit correctly
+                    slowBlockHandled = true; // This keypress was an attempt at a slow block
+                }
+            }
 
-            let hitOccurredForThisKeyPress = false;
-            let processedBlock = null;
+            if (slowBlockHandled) {
+                return; // If a slow block was successfully hit OR an incorrect slow key was pressed, stop here.
+            }
 
-            for (let i = blocks.length - 1; i >= 0; i--) {
-                const block = blocks[i];
-                if (block.state !== 'incoming' || block.isSlicing) continue;
+            // 2. Handle Normal Blocks (if no relevant slow block interaction occurred)
+            let bestNormalBlock = null;
+            let minNormalTimeDiff = Infinity;
 
-                const hitWindowStart = block.hitTime - HIT_PRECISION_WINDOW / 2;
-                const hitWindowEnd = block.hitTime + HIT_PRECISION_WINDOW / 2;
+            if (keyPressed === keybinds['left'] || keyPressed === keybinds['right']) {
+                // It's a lane key, now find the best normal block to hit
+                for (let i = blocks.length - 1; i >= 0; i--) {
+                    const block = blocks[i];
+                    // Only consider normal blocks (not slow blocks), incoming, and not slicing
+                    if (block.type !== 'slow' && block.state === 'incoming' && !block.isSlicing) {
+                        const hitWindowStart = block.hitTime - HIT_PRECISION_WINDOW / 2;
+                        const hitWindowEnd = block.hitTime + HIT_PRECISION_WINDOW / 2;
 
-                if (currentTime >= hitWindowStart && currentTime <= hitWindowEnd) {
-                    if (block.isBomb) {
-                        if (keyPressed === keybinds['left'] || keyPressed === keybinds['right']) {
-                            processedBlock = block;
-                            break; 
-                        }
-                    } else { 
-                        if ((block.type === 'left' && keyPressed === keybinds['left']) ||
-                            (block.type === 'right' && keyPressed === keybinds['right'])) {
-                            processedBlock = block;
-                            break; 
+                        if (currentTime >= hitWindowStart && currentTime <= hitWindowEnd) {
+                            let isKeyCorrect = false;
+                            if (block.type === 'left' && keyPressed === keybinds['left']) {
+                                isKeyCorrect = true;
+                            } else if (block.type === 'right' && keyPressed === keybinds['right']) {
+                                isKeyCorrect = true;
+                            } else if (block.isBomb && (keyPressed === keybinds['left'] || keyPressed === keybinds['right'])) {
+                                isKeyCorrect = true; // Hitting bomb with any lane key
+                            }
+
+                            if (isKeyCorrect) {
+                                const timeDiff = Math.abs(currentTime - block.hitTime);
+                                if (timeDiff < minNormalTimeDiff) {
+                                    minNormalTimeDiff = timeDiff;
+                                    bestNormalBlock = block;
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            if (processedBlock) {
-                hitOccurredForThisKeyPress = true;
+            if (bestNormalBlock) {
+                normalBlockHandled = true;
+                const processedBlock = bestNormalBlock;
                 if (processedBlock.isBomb) {
                     health -= HEALTH_LOSS_ON_BOMB_HIT;
                     updateHealthBar();
+                    resetCombo();
                     createParticles(processedBlock.x, processedBlock.y, 'bomb_hit');
-                    createPopup(processedBlock.x, processedBlock.y, `-${HEALTH_LOSS_ON_BOMB_HIT} Health!`, 'red');
-                    processedBlock.isSlicing = true; 
-                    if (hiHatSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') hiHatSynth.triggerAttackRelease("16n", Tone.now() + 0.002); 
-                    console.log("BOMB HIT: Health reduced by " + HEALTH_LOSS_ON_BOMB_HIT + ". Current health: " + health);
-                } else { 
-                    processedBlock.state = 'hit'; 
+                    createPopup(processedBlock.x, processedBlock.y, `-${HEALTH_LOSS_ON_BOMB_HIT} Health!`, '#ff007f');
+                    processedBlock.isSlicing = true;
+                    // Added a small offset to Tone.now() to ensure strictly increasing time
+                    if (hiHatSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') hiHatSynth.triggerAttackRelease("16n", Tone.now() + 0.0005);
+                } else {
+                    processedBlock.state = 'hit';
                     const timeDiff = Math.abs(currentTime - processedBlock.hitTime);
                     const accuracyPercentage = clamp((1 - (timeDiff / (HIT_PRECISION_WINDOW / 2))) * 100, 0, 100);
 
@@ -1034,9 +1340,9 @@
                     totalAccuracySum += accuracyPercentage;
                     updateAccuracyDisplay();
 
-                    const pointsGained = MIN_ACCURACY_POINTS_PER_NOTE +
-                                         (MAX_ACCURACY_POINTS_PER_NOTE - MIN_ACCURACY_POINTS_PER_NOTE) * (accuracyPercentage / 100);
-                    score += Math.round(pointsGained);
+                    const basePointsGained = MIN_ACCURACY_POINTS_PER_NOTE +
+                                             (MAX_ACCURACY_POINTS_PER_NOTE - MIN_ACCURACY_POINTS_PER_NOTE) * (accuracyPercentage / 100);
+                    score += Math.round(basePointsGained * COMBO_MULTIPLIERS[currentComboLevel]);
                     updateScoreDisplay();
 
                     health = clamp(health + HEALTH_REGEN_PER_HIT, 0, MAX_HEALTH);
@@ -1044,20 +1350,22 @@
 
                     incrementCombo();
                     createParticles(processedBlock.x, processedBlock.y, processedBlock.type);
-                    createPopup(processedBlock.x, processedBlock.y, `+${Math.round(pointsGained)} (${accuracyPercentage.toFixed(0)}%)`, blockColors[processedBlock.type]);
-                    processedBlock.isSlicing = true; 
-                    if (kickSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') kickSynth.triggerAttackRelease("C2", "0.1", Tone.now() + 0.003); 
-                    console.log("NOTE HIT: Health increased by " + HEALTH_REGEN_PER_HIT + ", combo incremented to " + combo + ". Current health: " + health);
+                    createPopup(processedBlock.x, processedBlock.y, `+${Math.round(basePointsGained * COMBO_MULTIPLIERS[currentComboLevel])} (${accuracyPercentage.toFixed(0)}%)`, blockColors[processedBlock.type]);
+                    processedBlock.isSlicing = true;
+                    // Added a small offset to Tone.now() to ensure strictly increasing time
+                    if (kickSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') kickSynth.triggerAttackRelease("C2", "0.1", Tone.now() + 0.0006);
                 }
             }
 
-            if (!hitOccurredForThisKeyPress && Object.values(keybinds).includes(keyPressed)) {
+            // 3. Generic Miss (if a lane key was pressed but no block was hit)
+            // This happens only if no slow block interaction occurred AND no normal block was hit
+            if (!slowBlockHandled && !normalBlockHandled && (keyPressed === keybinds['left'] || keyPressed === keybinds['right'])) {
                 health -= HEALTH_LOSS_PER_MISS;
                 updateHealthBar();
-                resetCombo(); 
-                createParticles(CANVAS_WIDTH / 2, TARGET_Y, 'miss'); 
-                if (hiHatSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') hiHatSynth.triggerAttackRelease("16n", Tone.now() + 0.004); 
-                console.log("GENERAL MISS (Pressed key '" + keyPressed + "' for no target/wrong lane): Health reduced by " + HEALTH_LOSS_PER_MISS + ", combo reset. Current health: " + health);
+                resetCombo();
+                createParticles(CANVAS_WIDTH / 2, TARGET_Y, 'miss');
+                // Added a small offset to Tone.now() to ensure strictly increasing time
+                if (hiHatSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') hiHatSynth.triggerAttackRelease("16n", Tone.now() + 0.0007);
             }
         }
 
@@ -1065,9 +1373,9 @@
         function createParticles(x, y, type) {
             const color = type === 'left' ? blockColors['left'] :
                           type === 'right' ? blockColors['right'] :
-                          type === 'miss' ? '#ff0000' : 
-                          type === 'health_gain' ? '#00ff00' : 
-                          type === 'bomb_hit' ? '#ff4500' : 
+                          type === 'miss' ? '#ff007f' : // Miss particles are pink
+                          type === 'health_gain' ? '#00ffcc' : // Health gain particles are cyan
+                          type === 'bomb_hit' ? '#ff4500' : // Bomb hit particles are orange
                           '#ffffff'; 
             for (let i = 0; i < PARTICLE_COUNT_ON_HIT; i++) {
                 const angle = Math.random() * Math.PI * 2;
@@ -1132,10 +1440,16 @@
 
         // Draw game elements
         function draw() {
-            // Clear canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Draw pulsating target line
+            // Apply filter if a slow block is active
+            if (activeSlowBlock && activeSlowBlock.state === 'active' && !activeSlowBlock.isSlicing) {
+                ctx.filter = 'blur(1px)'; // Apply blur to everything else
+            } else {
+                ctx.filter = 'none'; // No blur
+            }
+
+            // Draw pulsating target line (will be blurred if activeSlowBlock exists)
             const pulseFactor = Math.sin(performance.now() / 200) * 0.1 + 1;
             const gradientLine = ctx.createLinearGradient(0, 0, CANVAS_WIDTH, 0);
             gradientLine.addColorStop(0, `rgba(0, 255, 255, ${0.3 * pulseFactor})`);
@@ -1151,46 +1465,26 @@
             // Store drawn double notes to prevent drawing cable twice
             const drawnDoubleNotes = new Set();
 
-            // Draw blocks and cables
-            blocks.forEach(block => {
-                // If it's a double note and we haven't drawn its cable yet
-                if (block.isDouble && block.doubleId !== undefined && !drawnDoubleNotes.has(block.doubleId)) {
-                    // Find the other part of the double note that is still incoming
-                    const pairedBlock = blocks.find(b => b.doubleId === block.doubleId && b !== block && b.state === 'incoming');
-                    if (pairedBlock && !block.isSlicing) { 
-                        const startX = block.x;
-                        const startY = block.y;
-                        const endX = pairedBlock.x;
-                        const endY = pairedBlock.y; 
-
-                        ctx.save();
-                        const cableGradient = ctx.createLinearGradient(startX, startY, endX, endY);
-                        cableGradient.addColorStop(0, blockColors['left']);
-                        cableGradient.addColorStop(1, blockColors['right']);
-                        ctx.strokeStyle = cableGradient;
-                        ctx.lineWidth = CABLE_WIDTH;
-                        ctx.lineCap = 'round'; 
-                        ctx.globalAlpha = block.opacity; 
-                        ctx.beginPath();
-                        ctx.moveTo(startX, startY);
-                        ctx.lineTo(endX, endY);
-                        ctx.stroke();
-                        ctx.restore();
-
-                        drawnDoubleNotes.add(block.doubleId); 
-                    }
-                }
-
+            // Draw all blocks *except* the active slow block if it exists and needs focus
+            blocks.filter(block => {
+                // If there's an activeSlowBlock, and this block IS that activeSlowBlock, exclude it from this first draw pass
+                return !(block.type === 'slow' && block === activeSlowBlock && block.state === 'active' && !block.isSlicing);
+            }).forEach(block => {
                 ctx.save();
                 ctx.translate(block.x, block.y); 
 
                 const halfSize = block.size / 2;
                 const radius = halfSize * 0.2; 
 
-                const gradient = ctx.createLinearGradient(-halfSize, -halfSize, halfSize, halfSize);
+                // Determine block color for gradient
                 let blockColor;
-                blockColor = blockColors[block.type];
+                if (block.type === 'slow') {
+                    blockColor = blockColors['left']; // Slow blocks always use left color
+                } else {
+                    blockColor = blockColors[block.type]; // Normal blocks (including bombs) use their type's color
+                }
 
+                const gradient = ctx.createLinearGradient(-halfSize, -halfSize, halfSize, halfSize);
                 gradient.addColorStop(0, `${blockColor}80`);
                 gradient.addColorStop(0.5, blockColor);
                 gradient.addColorStop(1, `${blockColor}80`);
@@ -1207,6 +1501,7 @@
                 if (block.isBomb) {
                     ctx.save();
                     ctx.lineWidth = 5; 
+                    // Cross color is opposite of the block's base color
                     const crossColor = block.type === 'left' ? blockColors['right'] : blockColors['left'];
                     ctx.strokeStyle = crossColor;
                     ctx.lineCap = 'round'; 
@@ -1224,13 +1519,22 @@
                     ctx.lineTo(-xOffset, yOffset);
                     ctx.stroke();
                     ctx.restore();
+                } else if (block.type === 'slow' && block.isSlicing) {
+                    // Draw content (number/letter) for slicing slow block (will be blurred)
+                    ctx.fillStyle = blockColors['right']; // Opposite color for text
+                    ctx.font = `bold ${block.size * 0.6}px Inter`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                    ctx.shadowBlur = 5;
+                    ctx.fillText(block.content, 0, 0); 
                 }
 
                 ctx.globalAlpha = 1; 
                 ctx.restore();
             });
 
-            // Draw particles
+            // Draw particles (will be blurred if activeSlowBlock exists)
             particles.forEach(p => {
                 ctx.fillStyle = p.color;
                 ctx.globalAlpha = p.opacity;
@@ -1240,7 +1544,7 @@
                 ctx.globalAlpha = 1; 
             });
 
-            // Draw popups
+            // Draw popups (will be blurred if activeSlowBlock exists)
             popups.forEach(popup => {
                 ctx.save();
                 ctx.globalAlpha = popup.opacity;
@@ -1252,6 +1556,45 @@
                 ctx.fillText(popup.text, popup.x, popup.y);
                 ctx.restore();
             });
+
+            // Reset filter to none BEFORE drawing the focused slow block
+            ctx.filter = 'none'; 
+
+            // Draw the active slow block (if it exists and is active/not slicing)
+            if (activeSlowBlock && activeSlowBlock.state === 'active' && !activeSlowBlock.isSlicing) {
+                const block = activeSlowBlock;
+                ctx.save();
+                ctx.translate(block.x, block.y); 
+
+                const halfSize = block.size / 2;
+                const radius = halfSize * 0.2; 
+
+                const blockColor = blockColors['left']; // Slow block color is always left block color
+                const gradient = ctx.createLinearGradient(-halfSize, -halfSize, halfSize, halfSize);
+                gradient.addColorStop(0, `${blockColor}80`);
+                gradient.addColorStop(0.5, blockColor);
+                gradient.addColorStop(1, `${blockColor}80`);
+
+                ctx.fillStyle = gradient;
+                ctx.shadowColor = blockColor;
+                ctx.shadowBlur = block.size * 0.3;
+                ctx.globalAlpha = block.opacity; 
+
+                roundRect(ctx, -halfSize, -halfSize, block.size, block.size, radius);
+                ctx.fill();
+
+                // Draw content (number/letter) for the FOCUSED slow block
+                ctx.fillStyle = blockColors['right']; // Opposite color for text
+                ctx.font = `bold ${block.size * 0.6}px Inter`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 5;
+                ctx.fillText(block.content, 0, 0); 
+
+                ctx.globalAlpha = 1; 
+                ctx.restore();
+            }
         }
 
         // Main game loop
@@ -1261,10 +1604,16 @@
             lastTime = currentTime;
 
             if (gameActive) {
+                // Update game level based on time
+                updateLevel(currentTime);
+
+                // Calculate current NJS and corresponding block travel duration
+                const currentNJS = BASE_NJS_VALUE + (level - 1) * NJS_PER_LEVEL_INCREASE;
+                const blockTravelDurationForNormal = BASE_BLOCK_TRAVEL_DURATION / (currentNJS / BASE_NJS_VALUE);
+                
                 if (currentTime - lastBlockSpawnTime > blockSpawnInterval) {
                     spawnBlock(currentTime);
                     lastBlockSpawnTime = currentTime;
-                    blockSpawnInterval = Math.max(300, blockSpawnInterval - 2);
                 }
 
                 updateBlocks(deltaTime, currentTime);
@@ -1291,15 +1640,28 @@
             const newEntry = {
                 score: score,
                 accuracy: parseFloat(accuracy.toFixed(2)),
-                date: new Date().toLocaleString()
+                date: new Date().toLocaleString(),
+                level: level // Save the level achieved
             };
-            leaderboard.push(newEntry);
+            
+            // Check if the new score should be added
+            if (leaderboard.length < 10) {
+                leaderboard.push(newEntry);
+            } else {
+                // If leaderboard is full, check if new score is higher than the lowest score
+                const lowestScore = leaderboard[leaderboard.length - 1].score;
+                if (newEntry.score > lowestScore) {
+                    leaderboard.pop(); // Remove the lowest score
+                    leaderboard.push(newEntry); // Add the new higher score
+                }
+            }
+
             leaderboard.sort((a, b) => {
                 if (b.score !== a.score) return b.score - a.score;
                 if (b.accuracy !== a.accuracy) return b.accuracy - a.accuracy;
                 return new Date(b.date).getTime() - new Date(a.date).getTime();
             });
-            const topScores = leaderboard.slice(0, 10);
+            const topScores = leaderboard.slice(0, 10); // Ensure only top 10 are kept after sorting
             localStorage.setItem('rhythmSlicerLeaderboard', JSON.stringify(topScores));
             console.log("Score saved:", newEntry);
         }
@@ -1322,7 +1684,7 @@
 
 
                 entryDiv.innerHTML = `
-                    <span>${index + 1}. Score: ${entry.score}</span>
+                    <span>${index + 1}. Score: ${entry.score} (Lvl ${entry.level})</span>
                     <span>Acc: ${entry.accuracy}%</span>
                 `;
                 leaderboardList.appendChild(entryDiv);
@@ -1333,15 +1695,24 @@
         // --- Event Listeners ---
         window.addEventListener('load', () => {
             initCanvas();
-            startScreen.style.display = 'flex';
+            startScreen.style.display = 'flex'; // Show main menu initially
+            gameContainer.style.display = 'none'; // Hide game container initially
+            leaderboardScreen.style.display = 'none'; // Hide leaderboard screen initially
 
             // Load saved settings
             const savedKeybinds = JSON.parse(localStorage.getItem('keybinds'));
-            if (savedKeybinds) keybinds = savedKeybinds;
+            if (savedKeybinds) {
+                keybinds = savedKeybinds;
+                // Re-initialize ALL_POSSIBLE_SLOW_KEYS after loading keybinds
+                ALL_POSSIBLE_SLOW_KEYS.length = 0; // Clear existing
+                Array.from({length: 26}, (_, i) => String.fromCharCode(97 + i)) // a-z
+                    .concat(Array.from({length: 10}, (_, i) => String.fromCharCode(48 + i))) // 0-9
+                    .filter(key => key !== keybinds['left'] && key !== keybinds['right'])
+                    .forEach(key => ALL_POSSIBLE_SLOW_KEYS.push(key));
+            }
+
             const savedColors = JSON.parse(localStorage.getItem('blockColors'));
             if (savedColors) blockColors = savedColors;
-            const savedNJS = localStorage.getItem('noteJumpSpeed');
-            if (savedNJS) noteJumpSpeed = parseFloat(savedNJS);
             const savedMusicUrl = localStorage.getItem('musicUrl');
             if (savedMusicUrl) musicUrlInput.value = savedMusicUrl;
 
@@ -1350,14 +1721,12 @@
             rightKeyDisplay.textContent = keybinds['right'].toUpperCase();
             leftColorPicker.value = blockColors['left'];
             rightColorPicker.value = blockColors['right'];
-            njsInput.value = noteJumpSpeed;
             if (musicUrlInput.value) {
-                backgroundMusic.src = musicUrlInput.value;
+                backgroundMusic.src = musicUrlInput.value; 
             }
 
             // Initially show controls section
             showSettingsSection('controls');
-            displayLeaderboard(); 
         });
 
         startGameBtn.addEventListener('click', () => {
@@ -1375,6 +1744,7 @@
                 resetGame();
             }
         });
+
         restartGameBtn.addEventListener('click', () => {
             if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
                 Tone.start().then(() => {
@@ -1391,16 +1761,76 @@
             }
         });
 
+        // Event listener for Options button on main menu
+        mainMenuOptionsBtn.addEventListener('click', openSettings);
+
+        // Event listener for Return to Main Menu from game over screen
+        gameOverReturnToMainBtn.addEventListener('click', () => {
+            gameOverScreen.style.display = 'none';
+            startScreen.style.display = 'flex';
+            gameActive = false; // Ensure game is not active
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            backgroundMusic.pause();
+            backgroundMusic.currentTime = 0;
+            // No need to hide gameContainer, as it's already hidden by endGame()
+        });
+
+        // Event listeners for Leaderboard buttons
+        leaderboardButtonMain.addEventListener('click', () => {
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            settingsModal.style.display = 'none';
+            gameContainer.style.display = 'none';
+            leaderboardScreen.style.display = 'flex';
+            displayLeaderboard(); // Populate and display the leaderboard
+        });
+
+        leaderboardButtonGameOver.addEventListener('click', () => {
+            gameOverScreen.style.display = 'none';
+            startScreen.style.display = 'none';
+            settingsModal.style.display = 'none';
+            gameContainer.style.display = 'none';
+            leaderboardScreen.style.display = 'flex';
+            displayLeaderboard(); // Populate and display the leaderboard
+        });
+
+        leaderboardReturnToMainBtn.addEventListener('click', () => {
+            leaderboardScreen.style.display = 'none';
+            startScreen.style.display = 'flex';
+        });
+
+
+        // Event listener for Return to Main Menu from settings modal
+        returnToMainMenuSettingsBtn.addEventListener('click', () => {
+            settingsModal.style.display = 'none';
+            startScreen.style.display = 'flex';
+            gameActive = false; // Ensure game is not active if returning to main menu
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+            backgroundMusic.pause();
+            backgroundMusic.currentTime = 0;
+            // No need to hide gameContainer explicitly here, it's already hidden if settings was opened from main menu,
+            // or will be hidden by setting startScreen to flex and gameContainer to none.
+        });
+
         // Global key tracking
         document.addEventListener('keydown', (event) => {
             keysPressed[event.key.toLowerCase()] = true;
             if (!awaitingKeybind && settingsModal.style.display === 'flex') {
                 if (event.key === 'Escape') {
-                    closeSettingsModal();
+                    // If game was active before settings, resume game, else go to main menu
+                    if (gameWasActiveBeforeSettings) {
+                        closeSettingsModal(true); // Close and resume game
+                    } else {
+                        returnToMainMenuSettingsBtn.click(); // Go back to main menu
+                    }
                 }
                 return; 
             }
-            if (!awaitingKeybind) { 
+            if (!awaitingKeybind && gameActive) { // Only handle game keys if game is active and not in keybind mode
                 handleKeyPress(event);
             }
         });
@@ -1409,35 +1839,47 @@
         });
 
 
-        // Settings Modal Handlers
-        settingsBtn.addEventListener('click', () => {
-            gameWasActiveBeforeSettings = gameActive; 
-            gameActive = false; 
-            cancelAnimationFrame(animationFrameId); 
-            backgroundMusic.pause(); 
+        // Function to open settings, now universal
+        function openSettings() {
+            gameWasActiveBeforeSettings = gameActive; // Store current game state
+            gameActive = false; // Pause game
+            cancelAnimationFrame(animationFrameId); // Stop game loop
+            backgroundMusic.pause(); // Pause music
 
             settingsModal.style.display = 'flex';
             leftKeyDisplay.textContent = keybinds['left'].toUpperCase();
             rightKeyDisplay.textContent = keybinds['right'].toUpperCase();
             leftColorPicker.value = blockColors['left'];
             rightColorPicker.value = blockColors['right'];
-            njsInput.value = noteJumpSpeed;
             musicUrlInput.value = backgroundMusic.src;
-        });
 
-        closeSettingsBtn.addEventListener('click', closeSettingsModal);
+            // Hide main game containers
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            gameContainer.style.display = 'none'; 
+            leaderboardScreen.style.display = 'none'; // Hide leaderboard screen too
+        }
 
-        // Function to close settings modal
-        function closeSettingsModal() {
+        // Modified close settings function
+        function closeSettingsModal(resumeGame = false) {
             settingsModal.style.display = 'none';
-            if (gameWasActiveBeforeSettings) {
+            if (resumeGame && gameWasActiveBeforeSettings) {
                 gameActive = true; 
+                gameContainer.style.display = 'flex'; // Show game container
                 gameLoop(performance.now()); 
-                if (backgroundMusic.src && !backgroundMusic.paused) {
+                if (backgroundMusic.src && backgroundMusic.src !== window.location.href + '/') { // Check if valid music URL is loaded
                      backgroundMusic.play().catch(e => console.error("Error resuming music:", e));
                 }
-            } else if (startScreen.style.display === 'flex' && !gameActive) {
-            } else if (gameOverScreen.style.display === 'flex' && !gameActive) {
+            } else {
+                // If not resuming game, or game wasn't active, show main menu
+                startScreen.style.display = 'flex';
+                gameContainer.style.display = 'none'; // Ensure game container is hidden
+                gameActive = false; // Explicitly set to false
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+                backgroundMusic.pause();
+                backgroundMusic.currentTime = 0;
             }
         }
 
@@ -1456,9 +1898,11 @@
         document.addEventListener('keydown', (event) => {
             if (awaitingKeybind) {
                 const newKey = event.key.toLowerCase();
-                if ((newKey === keybinds['left'] && awaitingKeybind !== 'left') ||
-                    (newKey === keybinds['right'] && awaitingKeybind !== 'right') ||
-                    ['escape', 'tab', 'shift', 'control', 'alt', 'meta'].includes(newKey)) {
+                // Prevent common control keys from being remapped accidentally
+                if (['escape', 'tab', 'shift', 'control', 'alt', 'meta', 'f5', 'f11'].includes(newKey) ||
+                    (newKey === keybinds['left'] && awaitingKeybind !== 'left') ||
+                    (newKey === keybinds['right'] && awaitingKeybind !== 'right')) {
+                    // If an invalid key is pressed, revert display and reset awaitingKeybind
                     if (awaitingKeybind === 'left') {
                         leftKeyDisplay.textContent = keybinds['left'].toUpperCase();
                     } else {
@@ -1471,6 +1915,13 @@
 
                 keybinds[awaitingKeybind] = newKey;
                 localStorage.setItem('keybinds', JSON.stringify(keybinds)); 
+                // Re-initialize ALL_POSSIBLE_SLOW_KEYS after keybinds are updated
+                ALL_POSSIBLE_SLOW_KEYS.length = 0; // Clear existing
+                Array.from({length: 26}, (_, i) => String.fromCharCode(97 + i)) // a-z
+                    .concat(Array.from({length: 10}, (_, i) => String.fromCharCode(48 + i))) // 0-9
+                    .filter(key => key !== keybinds['left'] && key !== keybinds['right'])
+                    .forEach(key => ALL_POSSIBLE_SLOW_KEYS.push(key));
+                
                 if (awaitingKeybind === 'left') {
                     leftKeyDisplay.textContent = newKey.toUpperCase();
                 } else {
@@ -1491,15 +1942,12 @@
             localStorage.setItem('blockColors', JSON.stringify(blockColors)); 
         });
 
-        njsInput.addEventListener('input', (event) => {
-            noteJumpSpeed = parseFloat(event.target.value);
-            localStorage.setItem('noteJumpSpeed', noteJumpSpeed.toString()); 
-        });
 
         playMusicBtn.addEventListener('click', () => {
             const musicUrl = musicUrlInput.value;
             if (musicUrl) {
                 backgroundMusic.src = musicUrl;
+                // Ensure Tone.js AudioContext is running before trying to play music
                 if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
                     Tone.start().then(() => {
                         console.log("Tone.js AudioContext started successfully for music.");
@@ -1513,7 +1961,7 @@
                 localStorage.setItem('musicUrl', musicUrl); 
             } else {
                 backgroundMusic.pause();
-                backgroundMusic.src = '';
+                backgroundMusic.src = ''; // Clear source
                 localStorage.removeItem('musicUrl');
             }
         });
@@ -1545,6 +1993,7 @@
 
         // Handle Login button click
         loginBtn.addEventListener('click', () => {
+            // Updated to open auth.html, assuming it's renamed and in the same directory
             window.open('auth.html', '_blank', 'width=600,height=700,resizable=yes,scrollbars=yes');
         });
 
