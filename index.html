@@ -328,23 +328,18 @@
             box-shadow: 0 0 15px rgba(255, 255, 255, 0.4);
         }
 
-        input[type="number"] {
+        input[type="text"].initials-input {
             background-color: #30363d;
             color: #e6edf3;
             border: 1px solid rgba(0, 255, 255, 0.2);
             border-radius: 8px;
             padding: 8px 12px;
-            width: 80px;
+            width: 100px;
             text-align: center;
-            transition: all 0.2s ease;
-            -moz-appearance: textfield; /* Hide arrows for Firefox */
+            font-size: 1.2rem;
+            text-transform: uppercase; /* Force uppercase for initials */
         }
-        input[type="number"]::-webkit-outer-spin-button,
-        input[type="number"]::-webkit-inner-spin-button {
-            -webkit-appearance: none;
-            margin: 0;
-        }
-        input[type="number"]:focus {
+        input[type="text"].initials-input:focus {
             outline: none;
             border-color: #00ffff;
             box-shadow: 0 0 10px rgba(0, 255, 255, 0.4);
@@ -503,10 +498,14 @@
         <p id="final-score">Final Score: 0</p>
         <p id="final-accuracy">Final Accuracy: 0.00%</p>
         <p id="final-level">Level Reached: 1</p> <!-- Display final level -->
+        <div class="flex flex-col items-center gap-4 mt-4">
+            <label for="initials-input" class="text-white text-lg">Enter Your Initials (3 chars):</label>
+            <input type="text" id="initials-input" class="initials-input" maxlength="3" placeholder="ABC">
+            <button id="submit-score-btn" class="btn">Submit Score to Leaderboard</button>
+        </div>
         <button id="restart-game-btn" class="btn">Restart</button>
         <button id="game-over-return-to-main-btn" class="btn">Return to Main Menu</button>
-        <button id="leaderboard-button-gameover" class="btn">View Leaderboard</button>
-        <!-- Leaderboard section is now separate -->
+        <!-- Leaderboard button is now part of the submit flow or main menu -->
     </div>
 
     <div id="settings-modal" style="display: none;">
@@ -515,7 +514,7 @@
             <div class="settings-nav">
                 <button id="nav-controls" class="active">Controls & Appearance</button>
                 <button id="nav-gameplay">Gameplay & Audio</button>
-                <button id="nav-account">Account</button>
+                <!-- Removed Account tab as authentication is now anonymous -->
             </div>
 
             <div id="section-controls" class="settings-section active">
@@ -545,17 +544,6 @@
                 <button id="play-music-btn" class="btn">Play Music</button>
             </div>
 
-            <div id="section-account" class="settings-section">
-                <!-- User account information and actions -->
-                <p class="text-center text-lg text-gray-300" id="account-status-message">Login to keep your scores permanently!</p>
-                <div class="modal-item">
-                    <span>Logged In As:</span>
-                    <span id="username-display">Guest (Not Logged In)</span>
-                </div>
-                <button id="login-btn" class="btn">Login / Register</button>
-                <button id="logout-btn" class="btn" style="display: none;">Logout</button>
-            </div>
-
             <button id="return-to-main-menu-settings-btn" class="close-btn">Return to Main Menu</button>
         </div>
     </div>
@@ -577,32 +565,21 @@
     <script type="module">
         // Firebase Imports
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, query, orderBy, limit, getDocs, addDoc, onSnapshot, serverTimestamp, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // --- START OF REQUIRED CHANGES FOR GITHUB PAGES DEPLOYMENT ---
-
         // PASTE YOUR FIREBASE CONFIGURATION OBJECT HERE.
-        // Get this from your Firebase Console -> Project settings -> Your apps -> Web App -> Config
         const firebaseConfig = {
-          // !! IMPORTANT !! REPLACE ALL THE PLACEHOLDER VALUES BELOW WITH YOUR ACTUAL FIREBASE CONFIGURATION
-          apiKey: "AIzaSyAIFsE6cwpChwGqLMDgoZlaalbOk_zjMA0", 
+          apiKey: "AIzaSyAIFsE6cwpChwGqLMDgoZlaalbOk_zjMA0",
           authDomain: "rythm-slicer-game.firebaseapp.com",
-          projectId: "rythm-slicer-game", 
-          storageBucket: "rythm-slicer-game.firebasestorage.app",
+          projectId: "rythm-slicer-game",
+          storageBucket: "rythm-slicer-game.firebaseapp.com",
           messagingSenderId: "42501787115",
           appId: "1:42501787115:web:fb2fc5bc867e31d4a05dae",
-          // measurementId: "G-XXXXXXXXXX" // Optional: Uncomment and replace if you have Google Analytics
         };
 
         // For GitHub Pages, we use the projectId as the appId for Firestore path consistency.
         const appId = firebaseConfig.projectId;
-
-        // The __initial_auth_token is specific to the Canvas environment and not used here.
-        const initialAuthToken = null; 
-
-        // --- END OF REQUIRED CHANGES FOR GITHUB PAGES DEPLOYMENT ---
-
 
         let app;
         let db;
@@ -611,12 +588,12 @@
         let username = "Guest"; // Default username display
         let isAuthReady = false;
 
-        // User ID Display Element (created dynamically)
-        const userIdDisplay = document.createElement('div');
-        userIdDisplay.id = 'user-id-display';
-        userIdDisplay.className = 'absolute top-4 left-4 text-sm text-gray-400';
-        userIdDisplay.textContent = 'User ID: Loading...';
-        document.body.appendChild(userIdDisplay); // Append it to body
+        // User ID Display Element (removed as not needed for anonymous user display)
+        // const userIdDisplay = document.createElement('div');
+        // userIdDisplay.id = 'user-id-display';
+        // userIdDisplay.className = 'absolute top-4 left-4 text-sm text-gray-400';
+        // userIdDisplay.textContent = 'User ID: Loading...';
+        // document.body.appendChild(userIdDisplay);
 
         // Customization (only keybinds and colors remain)
         let keybinds = {
@@ -650,10 +627,12 @@
         const gameOverScreen = document.getElementById('game-over-screen');
         const finalScoreDisplay = document.getElementById('final-score');
         const finalAccuracyDisplay = document.getElementById('final-accuracy');
-        const finalLevelDisplay = document.getElementById('final-level'); // Final Level Display
+        const finalLevelDisplay = document.getElementById('final-level'); // Corrected this line
+        const initialsInput = document.getElementById('initials-input'); // New: Initials input
+        const submitScoreBtn = document.getElementById('submit-score-btn'); // New: Submit score button
         const restartGameBtn = document.getElementById('restart-game-btn');
         const gameOverReturnToMainBtn = document.getElementById('game-over-return-to-main-btn'); // New: Return to Main from game over
-        const leaderboardButtonGameOver = document.getElementById('leaderboard-button-gameover'); // New: Leaderboard button on game over
+        const leaderboardButtonGameOver = document.getElementById('leaderboard-button-gameover'); // Removed, handled by submit flow
         const settingsModal = document.getElementById('settings-modal');
         const returnToMainMenuSettingsBtn = document.getElementById('return-to-main-menu-settings-btn'); // New: Return to Main from settings
         const leftKeyDisplay = document.getElementById('left-key-display');
@@ -675,15 +654,11 @@
         // Settings Navigation elements
         const navControls = document.getElementById('nav-controls');
         const navGameplay = document.getElementById('nav-gameplay');
-        const navAccount = document.getElementById('nav-account'); 
+        // Removed navAccount as there's no explicit account management anymore
         const sectionControls = document.getElementById('section-controls');
         const sectionGameplay = document.getElementById('section-gameplay');
-        const sectionAccount = document.getElementById('section-account'); 
-        const loginBtn = document.getElementById('login-btn'); 
-        // New Account UI elements
-        const accountStatusMessage = document.getElementById('account-status-message');
-        const usernameDisplay = document.getElementById('username-display');
-        const logoutBtn = document.getElementById('logout-btn');
+        // Removed sectionAccount
+        // Removed loginBtn and logoutBtn from JS references as their elements are removed from HTML
 
 
         // Game Constants (adjustable)
@@ -695,33 +670,33 @@
         const SLOW_BLOCK_TRAVEL_FACTOR = 2; // Slow block falls at half the speed (twice the duration)
         const MAX_HEALTH = 100;
         const HEALTH_LOSS_PER_MISS = 15;
-        const HEALTH_REGEN_PER_HIT = 5; 
+        const HEALTH_REGEN_PER_HIT = 5;
         const PARTICLE_COUNT_ON_HIT = 15;
         const PARTICLE_LIFETIME = 400; // Milliseconds
-        const CHAIN_MIN_LENGTH = 2; 
-        const CHAIN_MAX_LENGTH = 4; 
+        const CHAIN_MIN_LENGTH = 2;
+        const CHAIN_MAX_LENGTH = 4;
         const CHAIN_OFFSET_TIME = 200; // Time in ms between chain blocks - increased for spacing
 
-        const MAX_ACCURACY_POINTS_PER_NOTE = 115; 
-        const MIN_ACCURACY_POINTS_PER_NOTE = 15;  
+        const MAX_ACCURACY_POINTS_PER_NOTE = 115;
+        const MIN_ACCURACY_POINTS_PER_NOTE = 15;
 
         const POPUP_LIFETIME = 800; // Milliseconds for popup to fade
-        const POPUP_MOVE_SPEED = 0.05; 
+        const POPUP_MOVE_SPEED = 0.05;
 
-        const CABLE_WIDTH = 8; 
-        const CABLE_RADIUS = 4; 
+        const CABLE_WIDTH = 8;
+        const CABLE_RADIUS = 4;
 
         const HEALTH_LOSS_ON_BOMB_HIT = HEALTH_LOSS_PER_MISS * 2;
-        const HEALTH_GAIN_ON_BOMB_MISS = HEALTH_REGEN_PER_HIT * 1.5; 
+        const HEALTH_GAIN_ON_BOMB_MISS = HEALTH_REGEN_PER_HIT * 1.5;
 
         // Spawn chances
         const SINGLE_NOTE_CHANCE = 0.35; // Reduced to make room for slow blocks
         const DOUBLE_NOTE_CHANCE = 0.20;
         const CHAIN_NOTE_CHANCE = 0.35; // Reduced
         const SLOW_BLOCK_CHANCE = 0.10; // New: Chance for slow block
-        const BOMB_INTEGRATION_CHANCE = 0.25; 
+        const BOMB_INTEGRATION_CHANCE = 0.25;
 
-        const HIT_PRECISION_WINDOW = 200; 
+        const HIT_PRECISION_WINDOW = 200;
 
         // Combo Multiplier Constants
         const COMBO_MULTIPLIERS = [1, 3, 5, 10]; // Multiplier values
@@ -753,30 +728,30 @@
         let rawComboCount = 0; // The actual combo count
         let consecutiveHits = 0; // Tracks hits for multiplier progression
         let currentComboLevel = 0; // Index for COMBO_MULTIPLIERS array
-        let totalNotesHit = 0; 
-        let totalAccuracySum = 0; 
-        let blocks = []; 
-        let particles = []; 
-        let popups = []; 
+        let totalNotesHit = 0;
+        let totalAccuracySum = 0;
+        let blocks = [];
+        let particles = [];
+        let popups = [];
         let lastBlockSpawnTime = 0;
         let blockSpawnInterval = BASE_SPAWN_INTERVAL; // Initialized with BASE_SPAWN_INTERVAL
         let gameActive = false;
-        let animationFrameId; 
-        let keysPressed = {}; 
+        let animationFrameId;
+        let keysPressed = {};
         let gameWasActiveBeforeSettings = false; // Flag to remember if game was active when settings opened
-        let doubleNoteCounter = 0; 
-        let gameOverHandled = false; 
+        let doubleNoteCounter = 0;
+        let gameOverHandled = false;
 
         let level = 1; // Current game level
         let lastLevelUpTime = 0; // Timestamp of the last level up
 
         let activeSlowBlock = null; // New: Holds the reference to the current active slow block
 
-        let awaitingKeybind = null; 
+        let awaitingKeybind = null;
 
         // Tone.js Audio Setup
         let kickSynth, hiHatSynth, scratchSynth;
-        let synthsInitialized = false; 
+        let synthsInitialized = false;
 
         function setupAudioSynths() {
             if (typeof Tone === 'undefined') {
@@ -795,7 +770,7 @@
                 envelope: {
                     attack: 0.001, decay: 0.4, sustain: 0.01, release: 0.8, attackCurve: "exponential"
                 }
-            }).toDestination(); 
+            }).toDestination();
 
             hiHatSynth = new Tone.NoiseSynth({
                 noise: { type: "white" },
@@ -842,7 +817,7 @@
             leftLaneCenters = [];
             rightLaneCenters = [];
             const halfCanvasWidth = CANVAS_WIDTH / 2;
-            
+
             // Calculate positions for 5 lanes on the left side
             const leftLaneTotalWidth = halfCanvasWidth;
             const leftLaneSpacing = leftLaneTotalWidth / LANE_COUNT_PER_SIDE;
@@ -870,8 +845,8 @@
             score = 0;
             health = MAX_HEALTH;
             rawComboCount = 0; // Reset raw combo
-            consecutiveHits = 0; 
-            currentComboLevel = 0; 
+            consecutiveHits = 0;
+            currentComboLevel = 0;
             totalNotesHit = 0;
             totalAccuracySum = 0;
             blocks = [];
@@ -880,7 +855,7 @@
             lastBlockSpawnTime = 0;
             blockSpawnInterval = BASE_SPAWN_INTERVAL; // Reset to base interval
             gameActive = true;
-            gameOverHandled = false; 
+            gameOverHandled = false;
             activeSlowBlock = null; // Reset active slow block
 
             level = 1; // Reset level
@@ -893,12 +868,17 @@
             updateAccuracyDisplay(); // Update accuracy display immediately
             updateLevelDisplay(); // Update level display
 
+            // Hide initials input and submit button until game over
+            initialsInput.style.display = 'none';
+            submitScoreBtn.style.display = 'none';
+            initialsInput.value = ''; // Clear previous initials
+
             // Show game elements
-            gameContainer.style.display = 'flex'; 
+            gameContainer.style.display = 'flex';
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
             leaderboardScreen.style.display = 'none'; // Hide leaderboard screen too
-            
+
             // Ensure no lingering animation frames if restarting from game over
             if (animationFrameId) {
                 cancelAnimationFrame(animationFrameId);
@@ -910,10 +890,9 @@
 
         // End the game
         function endGame() {
-            if (gameOverHandled) return; 
-            
-            saveScore(score, getOverallAccuracy()); 
-            gameOverHandled = true; 
+            if (gameOverHandled) return;
+
+            gameOverHandled = true;
 
             gameActive = false;
             cancelAnimationFrame(animationFrameId);
@@ -923,7 +902,12 @@
             gameOverScreen.style.display = 'flex';
             gameContainer.style.display = 'none'; // Hide game container
             backgroundMusic.pause();
-            // Leaderboard is now displayed when user clicks 'View Leaderboard' button
+
+            // Show initials input and submit button on game over
+            initialsInput.style.display = 'block';
+            submitScoreBtn.style.display = 'block';
+            initialsInput.focus(); // Focus the input for easy typing
+
             if (typeof Tone !== 'undefined' && Tone.Transport) {
                 Tone.Transport.stop();
                 Tone.Transport.cancel();
@@ -952,11 +936,11 @@
         function updateMultiplierDisplay() {
             multiplierDisplay.textContent = `${COMBO_MULTIPLIERS[currentComboLevel]}x`; // Show multiplier
             const currentColor = COMBO_COLORS[currentComboLevel];
-            multiplierDisplay.style.color = currentColor; 
-            multiplierDisplay.style.textShadow = `0 0 10px ${currentColor}80`; 
+            multiplierDisplay.style.color = currentColor;
+            multiplierDisplay.style.textShadow = `0 0 10px ${currentColor}80`;
 
             multiplierDisplay.classList.remove('pulsate-combo');
-            void multiplierDisplay.offsetWidth; 
+            void multiplierDisplay.offsetWidth;
             multiplierDisplay.classList.add('pulsate-combo');
         }
 
@@ -968,7 +952,7 @@
         // Increment combo
         function incrementCombo() {
             rawComboCount++; // Increment raw combo count
-            consecutiveHits++; 
+            consecutiveHits++;
 
             // Check if combo multiplier should increase
             if (currentComboLevel < COMBO_MULTIPLIERS.length - 1 && consecutiveHits % COMBO_LEVEL_UP_HITS === 0) {
@@ -984,13 +968,13 @@
         function resetCombo() {
             if (rawComboCount > 0 || consecutiveHits > 0) {
                 rawComboCount = 0; // Reset raw combo
-                consecutiveHits = 0; 
-                currentComboLevel = 0; 
+                consecutiveHits = 0;
+                currentComboLevel = 0;
                 updateRawComboDisplay(); // Update raw combo display
                 updateMultiplierDisplay(); // Update multiplier display
                 if (scratchSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') {
                     // Added a small offset to Tone.now() to ensure strictly increasing time
-                    scratchSynth.triggerAttackRelease("C2", "0.2", Tone.now() + 0.0001); 
+                    scratchSynth.triggerAttackRelease("C2", "0.2", Tone.now() + 0.0001);
                 }
             }
         }
@@ -1023,12 +1007,12 @@
         function updateAccuracyDisplay() {
             const currentAccuracy = getOverallAccuracy();
             accuracyDisplay.textContent = `Accuracy: ${currentAccuracy.toFixed(2)}%`;
-            
+
             const accuracyColor = getAccuracyColor(currentAccuracy);
             accuracyDisplay.style.color = accuracyColor;
             // Adjust border and shadow to use rgba with proper opacity for glow effect
-            accuracyDisplay.style.borderColor = accuracyColor.replace('rgb', 'rgba').replace(')', ', 0.6)'); 
-            accuracyDisplay.style.boxShadow = `0 0 15px ${accuracyColor.replace('rgb', 'rgba').replace(')', ', 0.4)')}`; 
+            accuracyDisplay.style.borderColor = accuracyColor.replace('rgb', 'rgba').replace(')', ', 0.6)');
+            accuracyDisplay.style.boxShadow = `0 0 15px ${accuracyColor.replace('rgb', 'rgba').replace(')', ', 0.4)')}`;
         }
 
         // Update game level based on time
@@ -1037,10 +1021,10 @@
                 level++;
                 lastLevelUpTime = currentTime;
                 updateLevelDisplay();
-                
+
                 // Decrease spawn interval as level increases (more frequent notes)
                 blockSpawnInterval = Math.max(MIN_SPAWN_INTERVAL, BASE_SPAWN_INTERVAL - (level * SPAWN_INTERVAL_DECREASE_PER_LEVEL));
-                
+
                 console.log(`Level Up! New Level: ${level}, New Spawn Interval: ${blockSpawnInterval.toFixed(0)}ms`);
             }
         }
@@ -1049,9 +1033,9 @@
         // Spawn a new block or chain or double note or bomb
         function spawnBlock(timestamp) {
             const currentNJS = BASE_NJS_VALUE + (level - 1) * NJS_PER_LEVEL_INCREASE;
-            
+
             // Base travel duration, will be modified for slow blocks
-            let blockTravelDuration = BASE_BLOCK_TRAVEL_DURATION / (currentNJS / BASE_NJS_VALUE); 
+            let blockTravelDuration = BASE_BLOCK_TRAVEL_DURATION / (currentNJS / BASE_NJS_VALUE);
             const startY = -INITIAL_BLOCK_SIZE;
 
             const spawnTypeRoll = Math.random();
@@ -1082,12 +1066,12 @@
 
             if (blockTypeToSpawn === 'slow') {
                 // Slower falling speed: half the speed means twice the travel duration
-                blockTravelDuration *= SLOW_BLOCK_TRAVEL_FACTOR; 
+                blockTravelDuration *= SLOW_BLOCK_TRAVEL_FACTOR;
                 const randomContent = ALL_POSSIBLE_SLOW_KEYS[Math.floor(Math.random() * ALL_POSSIBLE_SLOW_KEYS.length)];
-                
+
                 // Slow blocks appear in a single, central lane (or choose a random lane, for now central)
-                const randomLaneX = leftLaneCenters[Math.floor(LANE_COUNT_PER_SIDE / 2)]; // Use a central lane
-                
+                const randomLaneX = leftLaneCenters[Math.floor(LANE_COUNT_PER_SIDE / 2)];
+
                 const newSlowBlock = {
                     x: randomLaneX,
                     y: startY,
@@ -1101,7 +1085,7 @@
                     opacity: 1,
                     isChain: false,
                     isDouble: false,
-                    isBomb: false, 
+                    isBomb: false,
                     bombProgress: 0,
                     blockTravelDuration: blockTravelDuration
                 };
@@ -1110,13 +1094,13 @@
 
             } else if (blockTypeToSpawn === 'single') {
                 const laneType = Math.random() < 0.5 ? 'left' : 'right';
-                const isBomb = Math.random() < BOMB_INTEGRATION_CHANCE; 
+                const isBomb = Math.random() < BOMB_INTEGRATION_CHANCE;
 
                 const xCenters = laneType === 'left' ? leftLaneCenters : rightLaneCenters;
                 const randomLaneX = xCenters[Math.floor(Math.random() * xCenters.length)];
 
                 blocks.push({
-                    x: randomLaneX, 
+                    x: randomLaneX,
                     y: startY,
                     size: INITIAL_BLOCK_SIZE,
                     type: laneType, // Bomb's type MUST match its lane to get the correct base color
@@ -1127,7 +1111,7 @@
                     opacity: 1,
                     isChain: false,
                     isDouble: false,
-                    isBomb: isBomb, 
+                    isBomb: isBomb,
                     bombProgress: 0,
                     blockTravelDuration: blockTravelDuration
                 });
@@ -1135,7 +1119,7 @@
                 const currentDoubleId = doubleNoteCounter++;
 
                 blocks.push({
-                    x: leftLaneCenters[Math.floor(LANE_COUNT_PER_SIDE / 2)], 
+                    x: leftLaneCenters[Math.floor(LANE_COUNT_PER_SIDE / 2)],
                     y: startY,
                     size: INITIAL_BLOCK_SIZE,
                     type: 'left',
@@ -1147,12 +1131,12 @@
                     isChain: false,
                     isDouble: true,
                     doubleId: currentDoubleId,
-                    isBomb: false, 
+                    isBomb: false,
                     bombProgress: 0,
                     blockTravelDuration: blockTravelDuration
                 });
                 blocks.push({
-                    x: rightLaneCenters[Math.floor(LANE_COUNT_PER_SIDE / 2)], 
+                    x: rightLaneCenters[Math.floor(LANE_COUNT_PER_SIDE / 2)],
                     y: startY,
                     size: INITIAL_BLOCK_SIZE,
                     type: 'right',
@@ -1164,11 +1148,11 @@
                     isChain: false,
                     isDouble: true,
                     doubleId: currentDoubleId,
-                    isBomb: false, 
+                    isBomb: false,
                     bombProgress: 0,
                     blockTravelDuration: blockTravelDuration
                 });
-            } else if (blockTypeToSpawn === 'chain') { 
+            } else if (blockTypeToSpawn === 'chain') {
                 const laneType = Math.random() < 0.5 ? 'left' : 'right';
                 const chainLength = Math.floor(Math.random() * (CHAIN_MAX_LENGTH - CHAIN_MIN_LENGTH + 1)) + CHAIN_MIN_LENGTH;
 
@@ -1176,9 +1160,9 @@
                 const randomLaneX = xCenters[Math.floor(Math.random() * xCenters.length)];
 
                 for (let i = 0; i < chainLength; i++) {
-                    const isBomb = Math.random() < BOMB_INTEGRATION_CHANCE; 
+                    const isBomb = Math.random() < BOMB_INTEGRATION_CHANCE;
                     blocks.push({
-                        x: randomLaneX, 
+                        x: randomLaneX,
                         y: startY,
                         size: INITIAL_BLOCK_SIZE,
                         type: laneType, // Bomb's type MUST match its lane to get the correct base color
@@ -1191,7 +1175,7 @@
                         chainOrder: i,
                         chainLength: chainLength,
                         isDouble: false,
-                        isBomb: isBomb, 
+                        isBomb: isBomb,
                         bombProgress: 0,
                         blockTravelDuration: blockTravelDuration
                     });
@@ -1206,7 +1190,7 @@
 
                 // If block is already slicing, continue its animation until it disappears
                 if (block.isSlicing) {
-                    block.sliceProgress += deltaTime / 150; 
+                    block.sliceProgress += deltaTime / 150;
                     block.opacity = 1 - block.sliceProgress;
                     if (block.opacity <= 0) {
                         if (block.type === 'slow' && block === activeSlowBlock) {
@@ -1214,7 +1198,7 @@
                         }
                         blocks.splice(i, 1);
                     }
-                    continue; 
+                    continue;
                 }
 
                 // Calculate current Y position
@@ -1223,12 +1207,12 @@
 
                 // Update bomb visual progress
                 if (block.isBomb) {
-                    const appearanceStartProgress = 0.5; 
-                    const appearanceEndProgress = 0.9; 
+                    const appearanceStartProgress = 0.5;
+                    const appearanceEndProgress = 0.9;
                     const currentVisualProgress = (block.y - (-INITIAL_BLOCK_SIZE)) / (TARGET_Y + INITIAL_BLOCK_SIZE);
                     block.bombProgress = clamp((currentVisualProgress - appearanceStartProgress) / (appearanceEndProgress - appearanceStartProgress), 0, 1);
                 }
-                
+
                 // For slow blocks, transition state to 'active' once visible
                 if (block.type === 'slow' && block.state === 'incoming' && block.y > -INITIAL_BLOCK_SIZE) {
                     block.state = 'active';
@@ -1236,13 +1220,13 @@
 
                 // Check for misses (applies to all block types)
                 if (block.state === 'incoming' || block.state === 'active') { // Check both incoming and active states for miss
-                    const missWindowEnd = block.hitTime + HIT_PRECISION_WINDOW / 2; 
+                    const missWindowEnd = block.hitTime + HIT_PRECISION_WINDOW / 2;
                     if (block.type === 'slow') {
                         // Slow blocks miss if they pass the entire canvas height
                         if (block.y > CANVAS_HEIGHT) {
                             health -= HEALTH_LOSS_PER_MISS;
                             updateHealthBar();
-                            resetCombo(); 
+                            resetCombo();
                             createParticles(block.x, block.y, 'miss');
                             createPopup(block.x, block.y, `MISS!`, '#ff007f'); // Miss for slow block
                             block.isSlicing = true; // Make it disappear after missing
@@ -1254,28 +1238,28 @@
                             if (block.isBomb) {
                                 health = clamp(health + HEALTH_GAIN_ON_BOMB_MISS, 0, MAX_HEALTH);
                                 updateHealthBar();
-                                createParticles(block.x, TARGET_Y, 'health_gain'); 
-                                createPopup(block.x, block.y, `+${HEALTH_GAIN_ON_BOMB_MISS} Health!`, '#00ff00'); 
+                                createParticles(block.x, TARGET_Y, 'health_gain');
+                                createPopup(block.x, block.y, `+${HEALTH_GAIN_ON_BOMB_MISS} Health!`, '#00ff00');
                                 block.isSlicing = true;
                                 console.log("BOMB MISSED (passed line): Health gained.");
                             } else {
                                 health -= HEALTH_LOSS_PER_MISS;
                                 updateHealthBar();
-                                resetCombo(); 
+                                resetCombo();
                                 createParticles(block.x, TARGET_Y, 'miss');
                                 block.isSlicing = true;
                                 // Added a small offset to Tone.now() to ensure strictly increasing time
-                                if (hiHatSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') hiHatSynth.triggerAttackRelease("16n", Tone.now() + 0.0002); 
-                                totalNotesHit++; 
+                                if (hiHatSynth && typeof Tone !== 'undefined' && Tone.context.state === 'running') hiHatSynth.triggerAttackRelease("16n", Tone.now() + 0.0002);
+                                totalNotesHit++;
                                 updateAccuracyDisplay();
                                 console.log("NOTE MISSED (passed line): Health reduced, combo reset.");
 
                                 if (block.isDouble && block.doubleId !== undefined) {
                                     const pairedBlock = blocks.find(b => b.doubleId === block.doubleId && b !== block && (b.state === 'incoming' || b.state === 'active'));
                                     if (pairedBlock) {
-                                        pairedBlock.isSlicing = true; 
-                                        pairedBlock.state = 'missed'; 
-                                        totalNotesHit++; 
+                                        pairedBlock.isSlicing = true;
+                                        pairedBlock.state = 'missed';
+                                        totalNotesHit++;
                                         updateAccuracyDisplay();
                                         console.log("PAIRED DOUBLE NOTE MISSED (passed line).");
                                     }
@@ -1292,7 +1276,7 @@
             if (!gameActive || awaitingKeybind) return;
 
             const keyPressed = event.key.toLowerCase();
-            const currentTime = performance.now(); 
+            const currentTime = performance.now();
             if (currentTime === null || currentTime === undefined) {
                 console.error("Time source returned invalid time, skipping key press handler.");
                 return;
@@ -1300,7 +1284,7 @@
 
             let slowBlockHandled = false;
             let normalBlockHandled = false;
-            
+
             // 1. Prioritize handling the SINGLE active Slow Block
             if (activeSlowBlock && activeSlowBlock.state === 'active' && !activeSlowBlock.isSlicing) {
                 if (keyPressed === activeSlowBlock.content.toLowerCase()) {
@@ -1430,7 +1414,7 @@
                           type === 'miss' ? '#ff007f' : // Miss particles are pink
                           type === 'health_gain' ? '#00ffcc' : // Health gain particles are cyan
                           type === 'bomb_hit' ? '#ff4500' : // Bomb hit particles are orange
-                          '#ffffff'; 
+                          '#ffffff';
             for (let i = 0; i < PARTICLE_COUNT_ON_HIT; i++) {
                 const angle = Math.random() * Math.PI * 2;
                 const speed = Math.random() * 5 + 2;
@@ -1454,8 +1438,8 @@
                 p.x += p.vx;
                 p.y += p.vy;
                 p.life -= deltaTime;
-                p.opacity = clamp(p.life / PARTICLE_LIFETIME, 0, 1); 
-                p.radius = clamp(p.radius * (p.life / PARTICLE_LIFETIME), 0.5, 10); 
+                p.opacity = clamp(p.life / PARTICLE_LIFETIME, 0, 1);
+                p.radius = clamp(p.radius * (p.life / PARTICLE_LIFETIME), 0.5, 10);
 
                 if (p.life <= 0) {
                     particles.splice(i, 1);
@@ -1525,10 +1509,10 @@
                 return !(block.type === 'slow' && block === activeSlowBlock && block.state === 'active' && !block.isSlicing);
             }).forEach(block => {
                 ctx.save();
-                ctx.translate(block.x, block.y); 
+                ctx.translate(block.x, block.y);
 
                 const halfSize = block.size / 2;
-                const radius = halfSize * 0.2; 
+                const radius = halfSize * 0.2;
 
                 // Determine block color for gradient
                 let blockColor;
@@ -1547,23 +1531,23 @@
                 ctx.shadowColor = blockColor;
                 ctx.shadowBlur = block.size * 0.3;
 
-                ctx.globalAlpha = block.opacity; 
+                ctx.globalAlpha = block.opacity;
 
                 roundRect(ctx, -halfSize, -halfSize, block.size, block.size, radius);
                 ctx.fill();
 
                 if (block.isBomb) {
                     ctx.save();
-                    ctx.lineWidth = 5; 
+                    ctx.lineWidth = 5;
                     // Cross color is opposite of the block's base color
                     const crossColor = block.type === 'left' ? blockColors['right'] : blockColors['left'];
                     ctx.strokeStyle = crossColor;
-                    ctx.lineCap = 'round'; 
+                    ctx.lineCap = 'round';
                     ctx.shadowColor = crossColor;
                     ctx.shadowBlur = 10;
-                    ctx.globalAlpha = block.bombProgress * block.opacity; 
+                    ctx.globalAlpha = block.bombProgress * block.opacity;
 
-                    const xOffset = halfSize * 0.6; 
+                    const xOffset = halfSize * 0.6;
                     const yOffset = halfSize * 0.6;
 
                     ctx.beginPath();
@@ -1581,10 +1565,10 @@
                     ctx.textBaseline = 'middle';
                     ctx.shadowColor = 'rgba(0,0,0,0.5)';
                     ctx.shadowBlur = 5;
-                    ctx.fillText(block.content, 0, 0); 
+                    ctx.fillText(block.content, 0, 0);
                 }
 
-                ctx.globalAlpha = 1; 
+                ctx.globalAlpha = 1;
                 ctx.restore();
             });
 
@@ -1595,7 +1579,7 @@
                 ctx.beginPath();
                 ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.globalAlpha = 1; 
+                ctx.globalAlpha = 1;
             });
 
             // Draw popups (will be blurred if activeSlowBlock exists)
@@ -1612,16 +1596,16 @@
             });
 
             // Reset filter to none BEFORE drawing the focused slow block
-            ctx.filter = 'none'; 
+            ctx.filter = 'none';
 
             // Draw the active slow block (if it exists and is active/not slicing)
             if (activeSlowBlock && activeSlowBlock.state === 'active' && !activeSlowBlock.isSlicing) {
                 const block = activeSlowBlock;
                 ctx.save();
-                ctx.translate(block.x, block.y); 
+                ctx.translate(block.x, block.y);
 
                 const halfSize = block.size / 2;
-                const radius = halfSize * 0.2; 
+                const radius = halfSize * 0.2;
 
                 const blockColor = blockColors['left']; // Slow block color is always left block color
                 const gradient = ctx.createLinearGradient(-halfSize, -halfSize, halfSize, halfSize);
@@ -1632,7 +1616,7 @@
                 ctx.fillStyle = gradient;
                 ctx.shadowColor = blockColor;
                 ctx.shadowBlur = block.size * 0.3;
-                ctx.globalAlpha = block.opacity; 
+                ctx.globalAlpha = block.opacity;
 
                 roundRect(ctx, -halfSize, -halfSize, block.size, block.size, radius);
                 ctx.fill();
@@ -1644,9 +1628,9 @@
                 ctx.textBaseline = 'middle';
                 ctx.shadowColor = 'rgba(0,0,0,0.5)';
                 ctx.shadowBlur = 5;
-                ctx.fillText(block.content, 0, 0); 
+                ctx.fillText(block.content, 0, 0);
 
-                ctx.globalAlpha = 1; 
+                ctx.globalAlpha = 1;
                 ctx.restore();
             }
         }
@@ -1664,7 +1648,7 @@
                 // Calculate current NJS and corresponding block travel duration
                 const currentNJS = BASE_NJS_VALUE + (level - 1) * NJS_PER_LEVEL_INCREASE;
                 const blockTravelDurationForNormal = BASE_BLOCK_TRAVEL_DURATION / (currentNJS / BASE_NJS_VALUE);
-                
+
                 if (currentTime - lastBlockSpawnTime > blockSpawnInterval) {
                     spawnBlock(currentTime);
                     lastBlockSpawnTime = currentTime;
@@ -1672,7 +1656,7 @@
 
                 updateBlocks(deltaTime, currentTime);
                 updateParticles(deltaTime);
-                updatePopups(deltaTime); 
+                updatePopups(deltaTime);
                 draw();
             }
 
@@ -1686,15 +1670,16 @@
             return savedScores ? JSON.parse(savedScores) : [];
         }
 
-        async function saveScoreToLocalStorage(score, accuracy) {
+        async function saveScoreToLocalStorage(score, accuracy, initials) {
              const leaderboard = loadLeaderboardFromLocalStorage();
             const newEntry = {
                 score: score,
                 accuracy: parseFloat(accuracy.toFixed(2)),
                 date: new Date().toLocaleString(),
-                level: level // Save the level achieved
+                level: level, // Save the level achieved
+                username: initials || "AAA" // Use initials or default
             };
-            
+
             // Check if the new score should be added
             if (leaderboard.length < 10) {
                 leaderboard.push(newEntry);
@@ -1718,27 +1703,21 @@
             console.log("Score saved to local storage:", newEntry);
         }
 
-        async function saveScore(score, accuracy) {
-            if (gameOverHandled) { 
+        async function saveScore(score, accuracy, userInitials) {
+            if (!db || !isAuthReady) {
+                console.warn("Firebase is not ready. Score will only be saved to local storage.");
+                saveScoreToLocalStorage(score, accuracy, userInitials);
                 return;
             }
 
-            // Always save to local storage first as a robust fallback
-            saveScoreToLocalStorage(score, accuracy);
-
-            if (!isAuthReady || !db || !userId) {
-                console.warn("Firebase is not ready or user is not identified. Score will not be saved to global leaderboard.");
-                return;
-            }
-
-            gameOverHandled = true;
+            const initialsToUse = userInitials ? userInitials.toUpperCase() : "AAA"; // Ensure uppercase and default
 
             const newEntry = {
                 score: score,
                 accuracy: parseFloat(accuracy.toFixed(2)),
                 level: level,
-                userId: userId, // Store the user ID
-                username: username, // Store the username for display
+                userId: userId, // Current anonymous user ID
+                username: initialsToUse, // Use the provided initials as username
                 timestamp: serverTimestamp() // Use server timestamp for consistent ordering
             };
 
@@ -1746,7 +1725,6 @@
 
             try {
                 // First, check the current top 10 scores
-                // Removed orderBy("timestamp", "desc") to avoid needing a composite index.
                 const q = query(leaderboardRef, orderBy("score", "desc"), limit(10));
                 const querySnapshot = await getDocs(q);
                 const currentScores = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -1758,21 +1736,17 @@
                 if (currentScores.length < 10) {
                     shouldAdd = true;
                 } else {
-                    // Find the lowest score in the current top 10
-                    // Sort locally to correctly identify the lowest score for potential deletion
                     currentScores.sort((a, b) => {
                         if (a.score !== b.score) return a.score - b.score; // Ascending score for finding lowest
-                        // For ties, consider older entries as less valuable
                         const timestampA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
                         const timestampB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
                         return timestampA - timestampB;
                     });
-                    lowestScoreEntry = currentScores[0]; // The first element after ascending sort is the lowest
+                    lowestScoreEntry = currentScores[0];
                     if (newEntry.score > lowestScoreEntry.score) {
                         shouldAdd = true;
                         lowestScoreId = lowestScoreEntry.id;
                     } else if (newEntry.score === lowestScoreEntry.score && newEntry.accuracy > lowestScoreEntry.accuracy) {
-                        // If scores are tied, a higher accuracy still replaces
                         shouldAdd = true;
                         lowestScoreId = lowestScoreEntry.id;
                     }
@@ -1780,7 +1754,6 @@
 
                 if (shouldAdd) {
                     if (lowestScoreId) {
-                        // Remove the lowest score if the new score is higher and leaderboard is full
                         await deleteDoc(doc(db, `artifacts/${appId}/public/data/leaderboard`, lowestScoreId));
                         console.log(`Removed lowest score ${lowestScoreEntry.score} (ID: ${lowestScoreId}) from leaderboard.`);
                     }
@@ -1806,7 +1779,6 @@
             }
 
             const leaderboardRef = collection(db, `artifacts/${appId}/public/data/leaderboard`);
-            // Only order by score descending. Secondary sorting will be done client-side.
             const q = query(leaderboardRef, orderBy("score", "desc"), limit(10));
 
             onSnapshot(q, (snapshot) => {
@@ -1819,8 +1791,8 @@
                         score: data.score,
                         accuracy: data.accuracy,
                         level: data.level,
-                        userId: data.userId,
-                        username: data.username || 'N/A', // Get username, fallback to N/A
+                        // userId: data.userId, // Can remove if not needed for display
+                        username: data.username || 'AAA', // Get username (initials), fallback to AAA
                         date: data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString() : 'N/A' // Convert timestamp
                     });
                 });
@@ -1858,33 +1830,27 @@
             leaderboardData.forEach((entry, index) => {
                 const entryDiv = document.createElement('div');
                 entryDiv.classList.add('leaderboard-entry');
-                
-                // Display username if available, otherwise truncate userId
-                const displayUserName = entry.username && entry.username !== 'Guest' ? entry.username : `${(entry.userId || 'Guest').substring(0, 8)}...`;
+
+                // Display username (initials)
+                const displayUserName = entry.username;
                 entryDiv.innerHTML = `
                     <span>${index + 1}. Score: ${entry.score} (Lvl ${entry.level})</span>
                     <span>Acc: ${entry.accuracy}%</span>
-                    <span class="text-xs text-gray-500 ml-2">User: ${displayUserName}</span>
+                    <span class="text-xs text-gray-500 ml-2">Initials: ${displayUserName}</span>
                 `;
                 leaderboardList.appendChild(entryDiv);
             });
         }
 
 
-        // --- Firebase Initialization ---
+        // --- Firebase Initialization (Modified for Anonymous Auth) ---
         async function initializeFirebase() {
-            // Check if firebaseConfig is populated (i.e., not the placeholder)
             if (!firebaseConfig.apiKey || firebaseConfig.apiKey === "YOUR_API_KEY" || !firebaseConfig.projectId) {
                 console.warn("Firebase config is not set correctly. Please paste your actual Firebase config (especially API Key and Project ID) in the script. Features relying on Firestore will not work.");
-                userIdDisplay.textContent = 'User ID: Anonymous (Firebase Config Missing/Invalid)';
-                userId = crypto.randomUUID(); // Assign a temporary ID
-                username = "Guest"; // Default to Guest
-                usernameDisplay.textContent = `Guest (Not Logged In)`; // Update settings display
-                loginBtn.style.display = 'block'; // Show login button
-                logoutBtn.style.display = 'none'; // Hide logout button
-                accountStatusMessage.textContent = 'Login to keep your scores permanently!';
-                isAuthReady = true; // Allow game to proceed, but with local storage only for leaderboard
-                // setupLeaderboardListener(); // Still call, it will fallback to local storage
+                userId = crypto.randomUUID(); // Assign a temporary ID for local use
+                username = "Guest";
+                isAuthReady = true;
+                setupLeaderboardListener(); // Still call, it will fallback to local storage
                 return;
             }
 
@@ -1896,51 +1862,30 @@
                 onAuthStateChanged(auth, async (user) => {
                     if (user) {
                         userId = user.uid;
-                        // Use user's display name if available, otherwise fallback to a truncated UID or "User"
-                        username = user.displayName || `User_${userId.substring(0, 5)}`; 
-                        userIdDisplay.textContent = `User ID: ${userId}`;
-                        usernameDisplay.textContent = `${username}`; // Update settings display
-                        loginBtn.style.display = 'none'; // Hide login button
-                        logoutBtn.style.display = 'block'; // Show logout button
-                        accountStatusMessage.textContent = `Welcome, ${username}! Your scores are saved.`;
-                        isAuthReady = true;
-                        // Start listening to leaderboard updates only after auth is ready
-                        setupLeaderboardListener();
+                        username = "Anonymous"; // No display name for anonymous users by default
+                        console.log("Firebase user state changed: Logged in anonymously.");
                     } else {
-                        console.log("No user logged in. Setting up as guest.");
-                        userId = crypto.randomUUID(); // Fallback to random ID for guests
-                        username = "Guest";
-                        userIdDisplay.textContent = `User ID: ${userId}`;
-                        usernameDisplay.textContent = `Guest (Not Logged In)`; // Update settings display
-                        loginBtn.style.display = 'block'; // Show login button
-                        logoutBtn.style.display = 'none'; // Hide logout button
-                        accountStatusMessage.textContent = 'Login to keep your scores permanently!';
-                        isAuthReady = true;
-                        // Still try to setup listener, it will fallback to local storage if needed
-                        setupLeaderboardListener(); 
+                        // If no user, sign in anonymously
+                        try {
+                            const anonymousUserCredential = await signInAnonymously(auth);
+                            userId = anonymousUserCredential.user.uid;
+                            username = "Anonymous";
+                            console.log("Firebase anonymous sign-in successful.");
+                        } catch (anonError) {
+                            console.error("Error signing in anonymously:", anonError);
+                            userId = crypto.randomUUID(); // Fallback to random ID if anonymous sign-in fails
+                            username = "Guest";
+                        }
                     }
+                    isAuthReady = true;
+                    // Start listening to leaderboard updates only after auth is ready
+                    setupLeaderboardListener();
                 });
             } catch (error) {
                 console.error("Error initializing Firebase:", error);
-                userIdDisplay.textContent = 'User ID: Anonymous (Firebase Init Failed)';
                 userId = crypto.randomUUID(); // Fallback to random ID if Firebase init fails
                 username = "Guest";
-                usernameDisplay.textContent = `Guest (Firebase Failed)`; // Update settings display
-                loginBtn.style.display = 'block'; // Show login button
-                logoutBtn.style.display = 'none'; // Hide logout button
-                accountStatusMessage.textContent = 'Login options currently unavailable.';
                 isAuthReady = true; // Mark as ready to allow game to proceed
-            }
-        }
-
-        // --- Logout Function ---
-        async function handleLogout() {
-            try {
-                await signOut(auth);
-                console.log("User logged out successfully.");
-                // onAuthStateChanged will handle UI update
-            } catch (error) {
-                console.error("Error logging out:", error);
             }
         }
 
@@ -1975,13 +1920,13 @@
             leftColorPicker.value = blockColors['left'];
             rightColorPicker.value = blockColors['right'];
             if (musicUrlInput.value) {
-                backgroundMusic.src = musicUrlInput.value; 
+                backgroundMusic.src = musicUrlInput.value;
             }
 
             // Initially show controls section
             showSettingsSection('controls');
 
-            // Initialize Firebase here
+            // Initialize Firebase here (will sign in anonymously)
             initializeFirebase();
         });
 
@@ -1989,14 +1934,14 @@
             if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
                 Tone.start().then(() => {
                     console.log("Tone.js AudioContext started successfully.");
-                    setupAudioSynths(); 
+                    setupAudioSynths();
                     resetGame();
                 }).catch(e => {
                     console.error("Error starting Tone.js AudioContext:", e);
                     resetGame();
                 });
             } else {
-                setupAudioSynths(); 
+                setupAudioSynths();
                 resetGame();
             }
         });
@@ -2005,14 +1950,14 @@
             if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
                 Tone.start().then(() => {
                     console.log("Tone.js AudioContext started successfully on restart.");
-                    setupAudioSynths(); 
+                    setupAudioSynths();
                     resetGame();
                 }).catch(e => {
                     console.error("Error starting Tone.js AudioContext on restart:", e);
                     resetGame();
                 });
             } else {
-                setupAudioSynths(); 
+                setupAudioSynths();
                 resetGame();
             }
         });
@@ -2030,7 +1975,6 @@
             }
             backgroundMusic.pause();
             backgroundMusic.currentTime = 0;
-            // No need to hide gameContainer, as it's already hidden by endGame()
         });
 
         // Event listeners for Leaderboard buttons
@@ -2044,19 +1988,23 @@
             setupLeaderboardListener(); // Ensure listener is active and fetches latest data
         });
 
-        leaderboardButtonGameOver.addEventListener('click', () => {
-            gameOverScreen.style.display = 'none';
-            startScreen.style.display = 'none';
-            settingsModal.style.display = 'none';
-            gameContainer.style.display = 'none';
-            leaderboardScreen.style.display = 'flex';
-            leaderboardLoading.style.display = 'block'; // Show loading
-            setupLeaderboardListener(); // Ensure listener is active and fetches latest data
-        });
-
         leaderboardReturnToMainBtn.addEventListener('click', () => {
             leaderboardScreen.style.display = 'none';
             startScreen.style.display = 'flex';
+        });
+
+        // Event listener for Submit Score button
+        submitScoreBtn.addEventListener('click', () => {
+            const initials = initialsInput.value.trim().toUpperCase();
+            if (initials.length === 3 && /^[A-Z0-9]+$/.test(initials)) {
+                saveScore(score, getOverallAccuracy(), initials);
+                initialsInput.style.display = 'none'; // Hide input after submission
+                submitScoreBtn.style.display = 'none'; // Hide button after submission
+                // Optionally, automatically show leaderboard or return to main menu
+                leaderboardButtonMain.click(); // Go to leaderboard
+            } else {
+                alert('Please enter exactly 3 alphanumeric characters for your initials.');
+            }
         });
 
 
@@ -2070,8 +2018,6 @@
             }
             backgroundMusic.pause();
             backgroundMusic.currentTime = 0;
-            // No need to hide gameContainer explicitly here, it's already hidden if settings was opened from main menu,
-            // or will be hidden by setting startScreen to flex and gameContainer to none.
         });
 
         // Global key tracking
@@ -2086,7 +2032,7 @@
                         returnToMainMenuSettingsBtn.click(); // Go back to main menu
                     }
                 }
-                return; 
+                return;
             }
             if (!awaitingKeybind && gameActive) { // Only handle game keys if game is active and not in keybind mode
                 handleKeyPress(event);
@@ -2114,7 +2060,7 @@
             // Hide main game containers
             startScreen.style.display = 'none';
             gameOverScreen.style.display = 'none';
-            gameContainer.style.display = 'none'; 
+            gameContainer.style.display = 'none';
             leaderboardScreen.style.display = 'none'; // Hide leaderboard screen too
         }
 
@@ -2122,9 +2068,9 @@
         function closeSettingsModal(resumeGame = false) {
             settingsModal.style.display = 'none';
             if (resumeGame && gameWasActiveBeforeSettings) {
-                gameActive = true; 
+                gameActive = true;
                 gameContainer.style.display = 'flex'; // Show game container
-                gameLoop(performance.now()); 
+                gameLoop(performance.now());
                 if (backgroundMusic.src && backgroundMusic.src !== window.location.href + '/') { // Check if valid music URL is loaded
                      backgroundMusic.play().catch(e => console.error("Error resuming music:", e));
                 }
@@ -2166,38 +2112,38 @@
                     } else {
                         rightKeyDisplay.textContent = keybinds['right'].toUpperCase();
                     }
-                    awaitingKeybind = null; 
-                    event.preventDefault(); 
+                    awaitingKeybind = null;
+                    event.preventDefault();
                     return;
                 }
 
                 keybinds[awaitingKeybind] = newKey;
-                localStorage.setItem('keybinds', JSON.stringify(keybinds)); 
+                localStorage.setItem('keybinds', JSON.stringify(keybinds));
                 // Re-initialize ALL_POSSIBLE_SLOW_KEYS after keybinds are updated
                 ALL_POSSIBLE_SLOW_KEYS.length = 0; // Clear existing
                 Array.from({length: 26}, (_, i) => String.fromCharCode(97 + i)) // a-z
                     .concat(Array.from({length: 10}, (_, i) => String.fromCharCode(48 + i))) // 0-9
                     .filter(key => key !== keybinds['left'] && key !== keybinds['right'])
                     .forEach(key => ALL_POSSIBLE_SLOW_KEYS.push(key));
-                
+
                 if (awaitingKeybind === 'left') {
                     leftKeyDisplay.textContent = newKey.toUpperCase();
                 } else {
                     rightKeyDisplay.textContent = newKey.toUpperCase();
                 }
-                awaitingKeybind = null; 
-                event.preventDefault(); 
+                awaitingKeybind = null;
+                event.preventDefault();
             }
         });
 
         leftColorPicker.addEventListener('input', (event) => {
             blockColors['left'] = event.target.value;
-            localStorage.setItem('blockColors', JSON.stringify(blockColors)); 
+            localStorage.setItem('blockColors', JSON.stringify(blockColors));
         });
 
         rightColorPicker.addEventListener('input', (event) => {
             blockColors['right'] = event.target.value;
-            localStorage.setItem('blockColors', JSON.stringify(blockColors)); 
+            localStorage.setItem('blockColors', JSON.stringify(blockColors));
         });
 
 
@@ -2216,7 +2162,7 @@
                 } else {
                     backgroundMusic.play().catch(e => console.error("Error playing music:", e));
                 }
-                localStorage.setItem('musicUrl', musicUrl); 
+                localStorage.setItem('musicUrl', musicUrl);
             } else {
                 backgroundMusic.pause();
                 backgroundMusic.src = ''; // Clear source
@@ -2227,15 +2173,13 @@
         // Settings Navigation Logic
         navControls.addEventListener('click', () => showSettingsSection('controls'));
         navGameplay.addEventListener('click', () => showSettingsSection('gameplay'));
-        navAccount.addEventListener('click', () => showSettingsSection('account')); 
+        // Removed navAccount listener
 
         function showSettingsSection(sectionName) {
             sectionControls.classList.remove('active');
             sectionGameplay.classList.remove('active');
-            sectionAccount.classList.remove('active'); 
             navControls.classList.remove('active');
             navGameplay.classList.remove('active');
-            navAccount.classList.remove('active'); 
 
             if (sectionName === 'controls') {
                 sectionControls.classList.add('active');
@@ -2243,20 +2187,9 @@
             } else if (sectionName === 'gameplay') {
                 sectionGameplay.classList.add('active');
                 navGameplay.classList.add('active');
-            } else if (sectionName === 'account') { 
-                sectionAccount.classList.add('active');
-                navAccount.classList.add('active');
             }
+            // Removed account section handling
         }
-
-        // Handle Login button click
-        loginBtn.addEventListener('click', () => {
-            // Updated to open auth.html, assuming it's renamed and in the same directory
-            window.open('auth.html', '_blank', 'width=600,height=700,resizable=yes,scrollbars=yes');
-        });
-
-        // Handle Logout button click
-        logoutBtn.addEventListener('click', handleLogout);
 
     </script>
 </body>
