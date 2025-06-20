@@ -558,6 +558,7 @@
     <div id="leaderboard-screen" style="display: none;">
         <h1>Leaderboard</h1>
         <div id="leaderboard-section">
+            <p id="leaderboard-loading" class="text-center text-gray-500">Loading Leaderboard...</p>
             <div id="leaderboard-list">
                 <!-- Leaderboard entries will be dynamically inserted here -->
             </div>
@@ -567,7 +568,30 @@
 
     <audio id="background-music" loop></audio>
 
-    <script>
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, query, orderBy, limit, getDocs, addDoc, onSnapshot, serverTimestamp, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Global Variables (MUST BE USED)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let app;
+        let db;
+        let auth;
+        let userId = null;
+        let isAuthReady = false;
+
+        // User ID Display Element (created dynamically)
+        const userIdDisplay = document.createElement('div');
+        userIdDisplay.id = 'user-id-display';
+        userIdDisplay.className = 'absolute top-4 left-4 text-sm text-gray-400';
+        userIdDisplay.textContent = 'User ID: Loading...';
+        document.body.appendChild(userIdDisplay); // Append it to body
+
         // Customization (only keybinds and colors remain)
         let keybinds = {
             'left': 'u',
@@ -618,6 +642,7 @@
         // Leaderboard elements
         const leaderboardScreen = document.getElementById('leaderboard-screen'); // The new leaderboard screen
         const leaderboardList = document.getElementById('leaderboard-list');
+        const leaderboardLoading = document.getElementById('leaderboard-loading'); // Loading indicator
         const leaderboardReturnToMainBtn = document.getElementById('leaderboard-return-to-main-btn'); // Button on leaderboard screen
 
 
@@ -913,8 +938,6 @@
         // Increment combo
         function incrementCombo() {
             rawComboCount++; // Increment raw combo count
-            updateRawComboDisplay(); // Update raw combo display
-
             consecutiveHits++; 
 
             // Check if combo multiplier should increase
@@ -924,6 +947,7 @@
             } else {
                 updateMultiplierDisplay(); // Still update to trigger pulse on every hit
             }
+            updateRawComboDisplay(); // Update raw combo display
         }
 
         // Reset combo
@@ -1626,17 +1650,14 @@
         }
 
         // --- Leaderboard Functions ---
-        function loadLeaderboard() {
+        // This function now exclusively loads from local storage, for fallback or if user prefers local
+        function loadLeaderboardFromLocalStorage() {
             const savedScores = localStorage.getItem('rhythmSlicerLeaderboard');
             return savedScores ? JSON.parse(savedScores) : [];
         }
 
-        function saveScore(score, accuracy) {
-            if (gameOverHandled) { 
-                return;
-            }
-
-            const leaderboard = loadLeaderboard();
+        async function saveScoreToLocalStorage(score, accuracy) {
+             const leaderboard = loadLeaderboardFromLocalStorage();
             const newEntry = {
                 score: score,
                 accuracy: parseFloat(accuracy.toFixed(2)),
@@ -1656,6 +1677,7 @@
                 }
             }
 
+            // Client-side sort to ensure consistent order for local storage
             leaderboard.sort((a, b) => {
                 if (b.score !== a.score) return b.score - a.score;
                 if (b.accuracy !== a.accuracy) return b.accuracy - a.accuracy;
@@ -1663,32 +1685,216 @@
             });
             const topScores = leaderboard.slice(0, 10); // Ensure only top 10 are kept after sorting
             localStorage.setItem('rhythmSlicerLeaderboard', JSON.stringify(topScores));
-            console.log("Score saved:", newEntry);
+            console.log("Score saved to local storage:", newEntry);
         }
 
-        function displayLeaderboard() {
-            const leaderboard = loadLeaderboard();
-            leaderboardList.innerHTML = ''; 
+        async function saveScore(score, accuracy) {
+            if (gameOverHandled) { 
+                return;
+            }
 
-            if (leaderboard.length === 0) {
+            // Always save to local storage first as a robust fallback
+            saveScoreToLocalStorage(score, accuracy);
+
+            if (!isAuthReady || !db || !userId) {
+                console.warn("Firebase is not ready or user is not identified. Score will not be saved to global leaderboard.");
+                return;
+            }
+
+            gameOverHandled = true;
+
+            const newEntry = {
+                score: score,
+                accuracy: parseFloat(accuracy.toFixed(2)),
+                level: level,
+                userId: userId, // Store the user ID
+                timestamp: serverTimestamp() // Use server timestamp for consistent ordering
+            };
+
+            const leaderboardRef = collection(db, `artifacts/${appId}/public/data/leaderboard`);
+
+            try {
+                // First, check the current top 10 scores
+                // Removed orderBy("timestamp", "desc") to avoid needing a composite index.
+                const q = query(leaderboardRef, orderBy("score", "desc"), limit(10));
+                const querySnapshot = await getDocs(q);
+                const currentScores = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+                let shouldAdd = false;
+                let lowestScoreId = null;
+                let lowestScoreEntry = null;
+
+                if (currentScores.length < 10) {
+                    shouldAdd = true;
+                } else {
+                    // Find the lowest score in the current top 10
+                    // Sort locally to correctly identify the lowest score for potential deletion
+                    currentScores.sort((a, b) => {
+                        if (a.score !== b.score) return a.score - b.score; // Ascending score for finding lowest
+                        // For ties, consider older entries as less valuable
+                        const timestampA = a.timestamp ? a.timestamp.toDate().getTime() : 0;
+                        const timestampB = b.timestamp ? b.timestamp.toDate().getTime() : 0;
+                        return timestampA - timestampB;
+                    });
+                    lowestScoreEntry = currentScores[0]; // The first element after ascending sort is the lowest
+                    if (newEntry.score > lowestScoreEntry.score) {
+                        shouldAdd = true;
+                        lowestScoreId = lowestScoreEntry.id;
+                    } else if (newEntry.score === lowestScoreEntry.score && newEntry.accuracy > lowestScoreEntry.accuracy) {
+                        // If scores are tied, a higher accuracy still replaces
+                        shouldAdd = true;
+                        lowestScoreId = lowestScoreEntry.id;
+                    }
+                }
+
+                if (shouldAdd) {
+                    if (lowestScoreId) {
+                        // Remove the lowest score if the new score is higher and leaderboard is full
+                        await deleteDoc(doc(db, `artifacts/${appId}/public/data/leaderboard`, lowestScoreId));
+                        console.log(`Removed lowest score ${lowestScoreEntry.score} (ID: ${lowestScoreId}) from leaderboard.`);
+                    }
+                    await addDoc(leaderboardRef, newEntry);
+                    console.log("Score saved to Firestore:", newEntry);
+                } else {
+                    console.log("Score not high enough to be added to global leaderboard.");
+                }
+            } catch (e) {
+                console.error("Error saving score to Firestore:", e);
+                // The score is already saved locally if Firestore save fails
+            }
+        }
+
+        // This function sets up a real-time listener for the global leaderboard
+        function setupLeaderboardListener() {
+            if (!db) {
+                console.warn("Firestore not initialized for leaderboard listener.");
+                leaderboardLoading.textContent = 'Leaderboard not available (Firebase not initialized).';
+                // Render local scores as a fallback immediately
+                renderLeaderboard(loadLeaderboardFromLocalStorage());
+                return;
+            }
+
+            const leaderboardRef = collection(db, `artifacts/${appId}/public/data/leaderboard`);
+            // Only order by score descending. Secondary sorting will be done client-side.
+            const q = query(leaderboardRef, orderBy("score", "desc"), limit(10));
+
+            onSnapshot(q, (snapshot) => {
+                console.log("Leaderboard update received from Firestore.");
+                const leaderboard = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    leaderboard.push({
+                        id: doc.id,
+                        score: data.score,
+                        accuracy: data.accuracy,
+                        level: data.level,
+                        userId: data.userId,
+                        date: data.timestamp ? new Date(data.timestamp.toDate()).toLocaleString() : 'N/A' // Convert timestamp
+                    });
+                });
+
+                // Client-side sort to ensure correct ordering by score, then accuracy, then date
+                leaderboard.sort((a, b) => {
+                    if (b.score !== a.score) return b.score - a.score;
+                    // Secondary sort for accuracy (higher accuracy first)
+                    if (b.accuracy !== a.accuracy) return b.accuracy - a.accuracy;
+                    // Tertiary sort by date (newer dates first) for ties
+                    const dateA = a.date !== 'N/A' ? new Date(a.date).getTime() : 0;
+                    const dateB = b.date !== 'N/A' ? new Date(b.date).getTime() : 0;
+                    return dateB - dateA;
+                });
+
+                renderLeaderboard(leaderboard); // Render the fetched and sorted data
+                leaderboardLoading.style.display = 'none'; // Hide loading indicator
+            }, (error) => {
+                console.error("Error fetching leaderboard from Firestore:", error);
+                leaderboardLoading.textContent = 'Error loading global leaderboard. Displaying local scores.';
+                // Fallback to local storage display if Firestore fails
+                renderLeaderboard(loadLeaderboardFromLocalStorage());
+            });
+        }
+
+        // Function to render the leaderboard to the DOM
+        function renderLeaderboard(leaderboardData) {
+            leaderboardList.innerHTML = '';
+
+            if (leaderboardData.length === 0) {
                 leaderboardList.innerHTML = '<p class="text-center text-gray-400">No scores yet! Play a game to get on the leaderboard.</p>';
                 return;
             }
 
-            leaderboard.forEach((entry, index) => {
+            leaderboardData.forEach((entry, index) => {
                 const entryDiv = document.createElement('div');
                 entryDiv.classList.add('leaderboard-entry');
-                if (index < 3) { 
-                    entryDiv.style.animation = `pulse 2s infinite alternate ease-in-out ${index * 0.2}s`;
-                }
+                // Removed animation logic from here to simplify, it can be re-added via CSS if desired
+                // if (index < 3) { 
+                //     entryDiv.style.animation = `pulse 2s infinite alternate ease-in-out ${index * 0.2}s`;
+                // }
 
-
+                // Display full user ID
+                const displayUserId = entry.userId || 'N/A';
                 entryDiv.innerHTML = `
                     <span>${index + 1}. Score: ${entry.score} (Lvl ${entry.level})</span>
                     <span>Acc: ${entry.accuracy}%</span>
+                    <span class="text-xs text-gray-500 ml-2">User: ${displayUserId.substring(0, 8)}...</span>
                 `;
                 leaderboardList.appendChild(entryDiv);
             });
+        }
+
+
+        // --- Firebase Initialization ---
+        async function initializeFirebase() {
+            if (!Object.keys(firebaseConfig).length) {
+                console.warn("Firebase config is empty. Firebase will not be initialized. Features relying on Firestore will not work.");
+                userIdDisplay.textContent = 'User ID: Anonymous (No Firebase)';
+                isAuthReady = true; // Mark as ready even without Firebase for local functionality
+                return;
+            }
+
+            try {
+                app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = `User ID: ${userId}`;
+                        loginBtn.textContent = 'Logged In'; // User is logged in
+                        loginBtn.disabled = true; // Disable login button
+                        isAuthReady = true;
+                        // Start listening to leaderboard updates only after auth is ready
+                        setupLeaderboardListener();
+                    } else {
+                        console.log("No user logged in. Attempting anonymous sign-in.");
+                        userIdDisplay.textContent = 'User ID: Anonymous (Signing in...)';
+                        loginBtn.textContent = 'Login / Register';
+                        loginBtn.disabled = false;
+                        try {
+                            if (initialAuthToken) {
+                                await signInWithCustomToken(auth, initialAuthToken);
+                                // onAuthStateChanged will be triggered again with the signed-in user
+                            } else {
+                                await signInAnonymously(auth);
+                                // onAuthStateChanged will be triggered again with the signed-in user
+                            }
+                        } catch (error) {
+                            console.error("Firebase Auth error:", error);
+                            userId = crypto.randomUUID(); // Fallback to random ID if auth fails
+                            userIdDisplay.textContent = `User ID: ${userId} (Auth Failed)`;
+                            isAuthReady = true;
+                            // Still try to setup listener, it might work for public data or fail gracefully
+                            setupLeaderboardListener(); // Call listener even if anonymous or failed
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("Error initializing Firebase:", error);
+                userIdDisplay.textContent = 'User ID: Anonymous (Firebase Init Failed)';
+                userId = crypto.randomUUID(); // Fallback to random ID if Firebase init fails
+                isAuthReady = true; // Mark as ready to allow game to proceed
+            }
         }
 
 
@@ -1727,6 +1933,9 @@
 
             // Initially show controls section
             showSettingsSection('controls');
+
+            // Initialize Firebase here
+            initializeFirebase();
         });
 
         startGameBtn.addEventListener('click', () => {
@@ -1784,7 +1993,8 @@
             settingsModal.style.display = 'none';
             gameContainer.style.display = 'none';
             leaderboardScreen.style.display = 'flex';
-            displayLeaderboard(); // Populate and display the leaderboard
+            leaderboardLoading.style.display = 'block'; // Show loading
+            setupLeaderboardListener(); // Ensure listener is active and fetches latest data
         });
 
         leaderboardButtonGameOver.addEventListener('click', () => {
@@ -1793,7 +2003,8 @@
             settingsModal.style.display = 'none';
             gameContainer.style.display = 'none';
             leaderboardScreen.style.display = 'flex';
-            displayLeaderboard(); // Populate and display the leaderboard
+            leaderboardLoading.style.display = 'block'; // Show loading
+            setupLeaderboardListener(); // Ensure listener is active and fetches latest data
         });
 
         leaderboardReturnToMainBtn.addEventListener('click', () => {
