@@ -6,11 +6,11 @@
     <title>Login / Register</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Firebase SDKs -->
+    <!-- Firebase SDKs - Updated to a stable version and included updateProfile -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-        import { getFirestore, doc, setDoc, query, collection, where, getDocs } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, query, collection, where, getDocs, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // IMPORTANT: For permanent deployment outside of Canvas, you need to use your Firebase Project's config.
         // Replace the placeholder values below with your ACTUAL Firebase project's configuration.
@@ -18,7 +18,7 @@
         const firebaseConfig = {
             apiKey: "AIzaSyAIFsE6cwpChwGqLMDgoZlaalbOk_zjMA0", // e.g., "AIzaSyC..."
             authDomain: "rythm-slicer-game.firebaseapp.com", // e.g., "my-rhythm-slicer.firebaseapp.com"
-            projectId: "rhythm-slicer-game", // e.g., "my-rhythm-slicer"
+            projectId: "rythm-slicer-game", // e.g., "my-rhythm-slicer"
             storageBucket: "rythm-slicer-game.firebasestorage.app", // e.g., "my-rhythm-slicer.appspot.com"
             messagingSenderId: "42501787115", // e.g., "1234567890"
             appId: "1:42501787115:web:fb2fc5bc867e31d4a05dae" // e.g., "1:1234567890:web:abcdef123456"
@@ -26,7 +26,6 @@
 
         // For this deployed version, the "appId" for Firestore paths will be the projectId
         const appIdForFirestore = firebaseConfig.projectId;
-
 
         let app;
         let auth;
@@ -45,6 +44,7 @@
         }
 
         // UI Elements
+        const usernameInput = document.getElementById('username-input'); // New username input
         const emailInput = document.getElementById('email-input');
         const passwordInput = document.getElementById('password-input');
         const registerBtn = document.getElementById('register-btn');
@@ -74,13 +74,27 @@
             }
         }
 
+        // Function to check if a username already exists
+        async function isUsernameTaken(username) {
+            const usernameRef = doc(db, 'artifacts', appIdForFirestore, 'public/usernames', username.toLowerCase());
+            const docSnap = await getDoc(usernameRef);
+            return docSnap.exists();
+        }
+
         // Registration Logic
         registerBtn.addEventListener('click', async () => {
-            const email = emailInput.value;
-            const password = passwordInput.value;
+            const username = usernameInput.value.trim(); // Get and trim username
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
 
-            if (!email || !password) {
-                showMessage('Please enter both email and password.', true);
+            if (!username || !email || !password) {
+                showMessage('Please enter a username, email, and password.', true);
+                return;
+            }
+
+            // Basic username validation
+            if (username.length < 3 || username.length > 20 || !/^[a-zA-Z0-9_]+$/.test(username)) {
+                showMessage('Username must be 3-20 characters long and contain only letters, numbers, and underscores.', true);
                 return;
             }
 
@@ -93,47 +107,60 @@
             }
 
             try {
-                // Corrected Firestore path for public_ips collection using appIdForFirestore
-                const publicIpsCollectionRef = collection(db, 'artifacts', appIdForFirestore, 'public_ips');
+                // Check if username is already taken
+                const usernameTaken = await isUsernameTaken(username);
+                if (usernameTaken) {
+                    showMessage(`The username "${username}" is already taken. Please choose another one.`, true);
+                    return;
+                }
+
+                // Check for existing IP registration
+                const publicIpsCollectionRef = collection(db, 'artifacts', appIdForFirestore, 'public/ips');
                 const ipQuery = query(publicIpsCollectionRef, where("ip", "==", userIp));
                 const ipSnapshot = await getDocs(ipQuery);
 
                 if (!ipSnapshot.empty) {
-                    const existingIpDoc = ipSnapshot.docs[0];
-                    const existingIpUid = existingIpDoc.data().uid;
-                    if (existingIpUid !== auth.currentUser?.uid) {
-                         showMessage(`This IP (${userIp}) is already registered with another account. Each IP is limited to one account.`, true);
-                         return;
-                    }
+                    // If an IP is found, check if it belongs to the current user (if logged in, though unlikely here)
+                    // Or if it's already used by a different user.
+                    // For this simplified example, if any document exists with this IP, prevent new registration.
+                    showMessage(`This IP (${userIp}) is already registered to an account. Only one account per IP allowed.`, true);
+                    return;
                 }
 
+                // Create user with email and password
                 const userCredential = await createUserWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
 
-                // Corrected Firestore path for user profile details using appIdForFirestore
+                // Update user's display name
+                await updateProfile(user, {
+                    displayName: username // Set the display name
+                });
+
+                // Save user profile details in Firestore
                 const userProfileRef = doc(db, 'artifacts', appIdForFirestore, 'users', user.uid, 'profile', 'details');
                 await setDoc(userProfileRef, {
                     email: user.email,
+                    username: username, // Store username in profile
                     registeredIp: userIp,
                     createdAt: new Date().toISOString()
                 });
 
-                // Save IP to public IP collection if not already there or if it's a re-registration for the same user
-                if (ipSnapshot.empty) {
-                     const ipDocRef = doc(publicIpsCollectionRef, user.uid); // Use UID as doc ID
-                     await setDoc(ipDocRef, { ip: userIp, uid: user.uid });
-                } else {
-                     const existingIpDocRef = ipSnapshot.docs[0].ref;
-                     await setDoc(existingIpDocRef, { ip: userIp, uid: user.uid });
-                }
+                // Save username to public/usernames collection (for uniqueness check)
+                const usernameDocRef = doc(db, 'artifacts', appIdForFirestore, 'public/usernames', username.toLowerCase());
+                await setDoc(usernameDocRef, { uid: user.uid, username: username });
 
-                showMessage('Registration successful! You can now login.', false);
-                console.log('User registered and data saved:', user.email, user.uid);
+                // Save IP to public IPs collection
+                const ipDocRef = doc(publicIpsCollectionRef, user.uid); // Use UID as doc ID for IP
+                await setDoc(ipDocRef, { ip: userIp, uid: user.uid });
+
+
+                showMessage('Registration successful! You can now login. Please close this window.', false);
+                console.log('User registered and data saved:', user.email, user.uid, username);
 
             } catch (error) {
                 console.error("Registration error:", error);
                 if (error.code === 'auth/email-already-in-use') {
-                    showMessage('The email address is already in use by another account.', true);
+                    showMessage('The email address is already in use by another account. Please use a different email.', true);
                 } else if (error.code === 'auth/weak-password') {
                     showMessage('Password is too weak. Must be at least 6 characters.', true);
                 } else if (error.code === 'auth/invalid-email') {
@@ -147,11 +174,11 @@
 
         // Login Logic
         loginBtn.addEventListener('click', async () => {
-            const email = emailInput.value;
-            const password = passwordInput.value;
+            const email = emailInput.value.trim();
+            const password = passwordInput.value.trim();
 
             if (!email || !password) {
-                showMessage('Please enter both email and password.', true);
+                showMessage('Please enter your email and password.', true);
                 return;
             }
 
@@ -160,13 +187,12 @@
             try {
                 const userCredential = await signInWithEmailAndPassword(auth, email, password);
                 const user = userCredential.user;
-                showMessage(`Login successful! Welcome, ${user.email}. You can close this window.`, false);
-                console.log('User logged in:', user.email, user.uid);
+                showMessage(`Login successful! Welcome, ${user.displayName || user.email}. You can close this window.`, false);
+                console.log('User logged in:', user.email, user.uid, user.displayName);
+
             } catch (error) {
                 console.error("Login error:", error);
-                if (error.code === 'auth/invalid-credential') {
-                    showMessage('Invalid email or password. Please try again.', true);
-                } else if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+                if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
                     showMessage('Invalid email or password. Please try again.', true);
                 } else {
                     showMessage(`Login failed: ${error.message}`, true);
@@ -326,7 +352,12 @@
         <h2>Account Login / Register</h2>
 
         <div class="input-group">
-            <label for="email-input">Email (Username):</label>
+            <label for="username-input">Username:</label>
+            <input type="text" id="username-input" placeholder="Choose a username" required>
+        </div>
+
+        <div class="input-group">
+            <label for="email-input">Email:</label>
             <input type="email" id="email-input" placeholder="Enter your email" required>
         </div>
 
